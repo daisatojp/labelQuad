@@ -245,12 +245,6 @@ class MainWindow(QMainWindow):
             checkable=True,
             enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
-        saveWithImageData = self.__new_action(
-            text=self.tr('Save With Image Data'),
-            slot=self.enableSaveImageWithData,
-            tip=self.tr('Save image data in label file'),
-            checkable=True,
-            checked=self._config['store_data'])
         close = self.__new_action(
             self.tr('&Close'),
             self.closeFile,
@@ -453,7 +447,6 @@ class MainWindow(QMainWindow):
 
         # Store actions for further handling.
         self.actions = utils.struct(
-            saveWithImageData=saveWithImageData,
             changeOutputDir=self.action_change_output_dir,
             save=self.action_save,
             saveAs=self.action_save_as,
@@ -535,7 +528,6 @@ class MainWindow(QMainWindow):
                 self.action_save_as,
                 self.action_save_auto,
                 self.action_change_output_dir,
-                saveWithImageData,
                 close,
                 self.action_delete_file,
                 None,
@@ -1437,10 +1429,6 @@ class MainWindow(QMainWindow):
         # The epsilon does not seem to work too well here.
         w = self.centralWidget().width() - 2.0
         return w / self.canvas.pixmap.width()
-
-    def enableSaveImageWithData(self, enabled):
-        self._config['store_data'] = enabled
-        self.actions.saveWithImageData.setChecked(enabled)
 
     def closeEvent(self, event):
         if not self.mayContinue():
