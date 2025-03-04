@@ -1,93 +1,214 @@
-# labelQuad
+Forked from labelme
 
+<h1 align="center">
+  <img src="labelme/icons/icon.png"><br/>labelme
+</h1>
 
+<h4 align="center">
+  Image Polygonal Annotation with Python
+</h4>
 
-## Getting started
+<div align="center">
+  <a href="https://pypi.python.org/pypi/labelme"><img src="https://img.shields.io/pypi/v/labelme.svg"></a>
+  <a href="https://pypi.org/project/labelme"><img src="https://img.shields.io/pypi/pyversions/labelme.svg"></a>
+  <a href="https://github.com/wkentaro/labelme/actions"><img src="https://github.com/wkentaro/labelme/workflows/ci/badge.svg?branch=main&event=push"></a>
+</div>
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+<div align="center">
+  <a href="#starter-guide"><b>Starter Guide</b></a>
+  | <a href="#installation"><b>Installation</b></a>
+  | <a href="#usage"><b>Usage</b></a>
+  | <a href="#examples"><b>Examples</b></a>
+  | <a href="https://x.com/labelmeai"><b>X/Twitter</b></a>
+  <!-- | <a href="https://github.com/wkentaro/labelme/discussions"><b>Community</b></a> -->
+  <!-- | <a href="https://www.youtube.com/playlist?list=PLI6LvFw0iflh3o33YYnVIfOpaO0hc5Dzw"><b>Youtube FAQ</b></a> -->
+</div>
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+<br/>
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin http://gitlab.sanritz.co.jp/cv/labelQuad.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](http://gitlab.sanritz.co.jp/cv/labelQuad/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
+<div align="center">
+  <img src="examples/instance_segmentation/.readme/annotation.jpg" width="70%">
+</div>
 
 ## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Labelme is a graphical image annotation tool inspired by <http://labelme.csail.mit.edu>.  
+It is written in Python and uses Qt for its graphical interface.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+<img src="examples/instance_segmentation/data_dataset_voc/JPEGImages/2011_000006.jpg" width="19%" /> <img src="examples/instance_segmentation/data_dataset_voc/SegmentationClass/2011_000006.png" width="19%" /> <img src="examples/instance_segmentation/data_dataset_voc/SegmentationClassVisualization/2011_000006.jpg" width="19%" /> <img src="examples/instance_segmentation/data_dataset_voc/SegmentationObject/2011_000006.png" width="19%" /> <img src="examples/instance_segmentation/data_dataset_voc/SegmentationObjectVisualization/2011_000006.jpg" width="19%" />  
+<i>VOC dataset example of instance segmentation.</i>
+
+<img src="examples/semantic_segmentation/.readme/annotation.jpg" width="30%" /> <img src="examples/bbox_detection/.readme/annotation.jpg" width="30%" /> <img src="examples/classification/.readme/annotation_cat.jpg" width="35%" />  
+<i>Other examples (semantic segmentation, bbox detection, and classification).</i>
+
+<img src="https://user-images.githubusercontent.com/4310419/47907116-85667800-de82-11e8-83d0-b9f4eb33268f.gif" width="30%" /> <img src="https://user-images.githubusercontent.com/4310419/47922172-57972880-deae-11e8-84f8-e4324a7c856a.gif" width="30%" /> <img src="https://user-images.githubusercontent.com/14256482/46932075-92145f00-d080-11e8-8d09-2162070ae57c.png" width="32%" />  
+<i>Various primitives (polygon, rectangle, circle, line, and point).</i>
+
+
+## Features
+
+- [x] Image annotation for polygon, rectangle, circle, line and point. ([tutorial](examples/tutorial))
+- [x] Image flag annotation for classification and cleaning. ([#166](https://github.com/wkentaro/labelme/pull/166))
+- [x] Video annotation. ([video annotation](examples/video_annotation))
+- [x] GUI customization (predefined labels / flags, auto-saving, label validation, etc). ([#144](https://github.com/wkentaro/labelme/pull/144))
+- [x] Exporting VOC-format dataset for semantic/instance segmentation. ([semantic segmentation](examples/semantic_segmentation), [instance segmentation](examples/instance_segmentation))
+- [x] Exporting COCO-format dataset for instance segmentation. ([instance segmentation](examples/instance_segmentation))
+
+
+## Starter Guide
+
+If you're new to Labelme, you can get started with [Labelme Starter Guide](https://labelme.gumroad.com/l/starter-guide) (FREE), which contains:
+
+- **Installation guides** for all platforms: Windows, macOS, and Linux ?��
+- **Step-by-step tutorials**: first annotation to editing, exporting, and integrating with other programs ?��
+- **A compilation of valuable resources** for further exploration ?��.
+
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+
+There are options:
+
+- Platform agnostic installation: [Anaconda](#anaconda)
+- Platform specific installation: [Ubuntu](#ubuntu), [macOS](#macos), [Windows](#windows)
+- Pre-build binaries from [the release section](https://github.com/wkentaro/labelme/releases)
+
+
+```bash
+py -3.10 -m venv .venv
+.venv\Scripts\activate
+pip install -e requirements-dev.txt
+```
+
+### Ubuntu
+
+```bash
+sudo apt-get install labelme
+
+# or
+sudo pip3 install labelme
+
+# or install standalone executable from:
+# https://github.com/wkentaro/labelme/releases
+```
+
+### macOS
+
+```bash
+brew install pyqt  # maybe pyqt5
+pip install labelme
+
+# or
+brew install wkentaro/labelme/labelme  # command line interface
+# brew install --cask wkentaro/labelme/labelme  # app
+
+# or install standalone executable/app from:
+# https://github.com/wkentaro/labelme/releases
+```
+
+### Windows
+
+Install [Anaconda](https://www.continuum.io/downloads), then in an Anaconda Prompt run:
+
+```bash
+conda create --name=labelme python=3
+conda activate labelme
+pip install labelme
+
+# or install standalone executable/app from:
+# https://github.com/wkentaro/labelme/releases
+```
+
 
 ## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Run `labelme --help` for detail.  
+The annotations are saved as a [JSON](http://www.json.org/) file.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+labelme  # just open gui
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+# tutorial (single image example)
+cd examples/tutorial
+labelme apc2016_obj3.jpg  # specify image file
+labelme apc2016_obj3.jpg -O apc2016_obj3.json  # close window after the save
+labelme apc2016_obj3.jpg --nodata  # not include image data but relative image path in JSON file
+labelme apc2016_obj3.jpg \
+  --labels highland_6539_self_stick_notes,mead_index_cards,kong_air_dog_squeakair_tennis_ball  # specify label list
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+# semantic segmentation example
+cd examples/semantic_segmentation
+labelme data_annotated/  # Open directory to annotate all images in it
+labelme data_annotated/ --labels labels.txt  # specify label list with a file
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### Command Line Arguments
+- `--output` specifies the location that annotations will be written to. If the location ends with .json, a single annotation will be written to this file. Only one image can be annotated if a location is specified with .json. If the location does not end with .json, the program will assume it is a directory. Annotations will be stored in this directory with a name that corresponds to the image that the annotation was made on.
+- The first time you run labelme, it will create a config file in `~/.labelmerc`. You can edit this file and the changes will be applied the next time that you launch labelme. If you would prefer to use a config file from another location, you can specify this file with the `--config` flag.
+- Without the `--nosortlabels` flag, the program will list labels in alphabetical order. When the program is run with this flag, it will display labels in the order that they are provided.
+- Flags are assigned to an entire image. [Example](examples/classification)
+- Labels are assigned to a single polygon. [Example](examples/bbox_detection)
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+### FAQ
 
-## License
-For open source projects, say how it is licensed.
+- **How to convert JSON file to numpy array?** See [examples/tutorial](examples/tutorial#convert-to-dataset).
+- **How to load label PNG file?** See [examples/tutorial](examples/tutorial#how-to-load-label-png-file).
+- **How to get annotations for semantic segmentation?** See [examples/semantic_segmentation](examples/semantic_segmentation).
+- **How to get annotations for instance segmentation?** See [examples/instance_segmentation](examples/instance_segmentation).
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+## Examples
+
+* [Image Classification](examples/classification)
+* [Bounding Box Detection](examples/bbox_detection)
+* [Semantic Segmentation](examples/semantic_segmentation)
+* [Instance Segmentation](examples/instance_segmentation)
+* [Video Annotation](examples/video_annotation)
+
+## How to develop
+
+```bash
+git clone https://github.com/wkentaro/labelme.git
+cd labelme
+
+# Install anaconda3 and labelme
+curl -L https://github.com/wkentaro/dotfiles/raw/main/local/bin/install_anaconda3.sh | bash -s .
+source .anaconda3/bin/activate
+pip install -e .
+```
+
+
+### How to build standalone executable
+
+Below shows how to build the standalone executable on macOS, Linux and Windows.  
+
+```bash
+# Setup conda
+conda create --name labelme python=3.9
+conda activate labelme
+
+# Build the standalone executable
+pip install .
+pip install 'matplotlib<3.3'
+pip install pyinstaller
+pyinstaller labelme.spec
+dist/labelme --version
+```
+
+
+### How to contribute
+
+Make sure below test passes on your environment.  
+See `.github/workflows/ci.yml` for more detail.
+
+```bash
+pip install -r requirements-dev.txt
+
+ruff format --check  # `ruff format` to auto-fix
+ruff check  # `ruff check --fix` to auto-fix
+MPLBACKEND='agg' pytest -vsx tests/
+```
+
+
+## Acknowledgement
+
+This repo is the fork of [mpitid/pylabelme](https://github.com/mpitid/pylabelme).
