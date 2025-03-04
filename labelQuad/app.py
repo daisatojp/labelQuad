@@ -184,18 +184,18 @@ class MainWindow(QMainWindow):
             shortcuts['quit'],
             'quit',
             self.tr('Quit application'),)
+        self.action_open_image_dir = self.__new_action(
+            self.tr('Open Image Dir'),
+            self.__open_image_dir_dialog,
+            shortcuts['open_dir'],
+            'open',
+            self.tr('Open Image Dir'))
         self.action_open = self.__new_action(
             self.tr('&Open\n'),
             self.openFile,
             shortcuts['open'],
             'open',
             self.tr('Open image or label file'))
-        self.action_open_dir = self.__new_action(
-            self.tr('Open Dir'),
-            self.openDirDialog,
-            shortcuts['open_dir'],
-            'open',
-            self.tr('Open Dir'))
         self.action_open_next = self.__new_action(
             self.tr('&Next Image'),
             self.openNextImg,
@@ -526,10 +526,10 @@ class MainWindow(QMainWindow):
         utils.addActions(
             self.menus.file,
             (
+                self.action_open_image_dir,
                 self.action_open,
                 self.action_open_next,
                 self.action_open_prev,
-                self.action_open_dir,
                 self.menus.recentFiles,
                 self.action_save,
                 self.action_save_as,
@@ -582,8 +582,8 @@ class MainWindow(QMainWindow):
 
         self.tools = self.toolbar('Tools')
         self.actions.tool = (
+            self.action_open_image_dir,
             self.action_open,
-            self.action_open_dir,
             self.action_open_prev,
             self.action_open_next,
             self.action_save,
@@ -627,7 +627,7 @@ class MainWindow(QMainWindow):
         }  # key=filename, value=scroll_value
 
         if filename is not None and osp.isdir(filename):
-            self.importDirImages(filename, load=False)
+            self.__import_dir_images(filename, load=False)
         else:
             self.filename = filename
 
@@ -653,7 +653,7 @@ class MainWindow(QMainWindow):
         # Since loading the file may take some time,
         # make sure it runs in the background.
         if self.filename is not None:
-            self.queueEvent(functools.partial(self.loadFile, self.filename))
+            self.queueEvent(functools.partial(self.__load_file, self.filename))
 
         # Callbacks:
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
@@ -702,7 +702,7 @@ class MainWindow(QMainWindow):
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
 
-        if self._config['auto_save'] or self.actions.saveAuto.isChecked():
+        if self._config['auto_save'] or self.action_save_auto.isChecked():
             label_file = osp.splitext(self.imagePath)[0] + '.json'
             if self.output_dir:
                 label_file_without_path = osp.basename(label_file)
@@ -710,7 +710,7 @@ class MainWindow(QMainWindow):
             self.saveLabels(label_file)
             return
         self.dirty = True
-        self.actions.save.setEnabled(True)
+        self.action_save.setEnabled(True)
         title = __appname__
         if self.filename is not None:
             title = '{} - {}*'.format(title, self.filename)
@@ -932,11 +932,10 @@ class MainWindow(QMainWindow):
             self.uniqLabelList.setItemLabel(item, shape.label, rgb)
 
     def fileSearchChanged(self):
-        self.importDirImages(
+        self.__import_dir_images(
             self.lastOpenDir,
             pattern=self.fileSearch.text(),
-            load=False,
-        )
+            load=False)
 
     def fileSelectionChanged(self):
         items = self.fileListWidget.selectedItems()
@@ -951,7 +950,7 @@ class MainWindow(QMainWindow):
         if currIndex < len(self.imageList):
             filename = self.imageList[currIndex]
             if filename:
-                self.loadFile(filename)
+                self.__load_file(filename)
 
     # React to canvas signals.
     def shapeSelectionChanged(self, selected_shapes):
@@ -1279,12 +1278,11 @@ class MainWindow(QMainWindow):
                 flag = item.checkState() == Qt.Unchecked
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
 
-    def loadFile(self, filename=None):
+    def __load_file(self, filename: str = None):
         """Load the specified file, or the last opened file if None."""
         # changing fileListWidget loads file
-        if filename in self.imageList and (
-            self.fileListWidget.currentRow() != self.imageList.index(filename)
-        ):
+        if (filename in self.imageList) and \
+           (self.fileListWidget.currentRow() != self.imageList.index(filename)):
             self.fileListWidget.setCurrentRow(self.imageList.index(filename))
             self.fileListWidget.repaint()
             return
@@ -1306,7 +1304,7 @@ class MainWindow(QMainWindow):
         if self.output_dir:
             label_file_without_path = osp.basename(label_file)
             label_file = osp.join(self.output_dir, label_file_without_path)
-        if QtCore.QFile.exists(label_file) and LabelFile.is_label_file(label_file):
+        if QFile.exists(label_file) and LabelFile.is_label_file(label_file):
             try:
                 self.labelFile = LabelFile(label_file)
             except LabelFileError as e:
@@ -1478,7 +1476,7 @@ class MainWindow(QMainWindow):
 
     def loadRecent(self, filename):
         if self.mayContinue():
-            self.loadFile(filename)
+            self.__load_file(filename)
 
     def openPrevImg(self, _value=False):
         keep_prev = self._config['keep_prev']
@@ -1498,7 +1496,7 @@ class MainWindow(QMainWindow):
         if currIndex - 1 >= 0:
             filename = self.imageList[currIndex - 1]
             if filename:
-                self.loadFile(filename)
+                self.__load_file(filename)
 
         self._config['keep_prev'] = keep_prev
 
@@ -1525,7 +1523,7 @@ class MainWindow(QMainWindow):
         self.filename = filename
 
         if self.filename and load:
-            self.loadFile(self.filename)
+            self.__load_file(self.filename)
 
         self._config['keep_prev'] = keep_prev
 
@@ -1551,7 +1549,7 @@ class MainWindow(QMainWindow):
         if fileDialog.exec_():
             fileName = fileDialog.selectedFiles()[0]
             if fileName:
-                self.loadFile(fileName)
+                self.__load_file(fileName)
 
     def changeOutputDirDialog(self, _value=False):
         default_output_dir = self.output_dir
@@ -1574,12 +1572,11 @@ class MainWindow(QMainWindow):
 
         self.statusBar().showMessage(
             self.tr('%s . Annotations will be saved/loaded in %s')
-            % ('Change Annotations Dir', self.output_dir)
-        )
+            % ('Change Annotations Dir', self.output_dir))
         self.statusBar().show()
 
         current_filename = self.filename
-        self.importDirImages(self.lastOpenDir, load=False)
+        self.__import_dir_images(self.lastOpenDir, load=False)
 
         if current_filename in self.imageList:
             # retain currently selected file
@@ -1741,23 +1738,20 @@ class MainWindow(QMainWindow):
         self.canvas.endMove(copy=False)
         self.setDirty()
 
-    def openDirDialog(self, _value=False, dirpath=None):
+    def __open_image_dir_dialog(self) -> None:
         if not self.mayContinue():
             return
-
-        defaultOpenDirPath = dirpath if dirpath else '.'
+        dir_path = '.'
         if self.lastOpenDir and osp.exists(self.lastOpenDir):
-            defaultOpenDirPath = self.lastOpenDir
+            dir_path = self.lastOpenDir
         else:
-            defaultOpenDirPath = osp.dirname(self.filename) if self.filename else '.'
-
-        targetDirPath = str(
-            QFileDialog.getExistingDirectory(
-                self,
-                self.tr('%s - Open Directory') % __appname__,
-                defaultOpenDirPath,
-                QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
-        self.importDirImages(targetDirPath)
+            dir_path = osp.dirname(self.filename) if self.filename else '.'
+        dir_path = str(QFileDialog.getExistingDirectory(
+            self,
+            self.tr('%s - Open Directory') % __appname__,
+            dir_path,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
+        self.__import_dir_images(dir_path)
 
     @property
     def imageList(self):
@@ -1795,9 +1789,9 @@ class MainWindow(QMainWindow):
 
         self.openNextImg()
 
-    def importDirImages(self, dirpath, pattern=None, load=True):
-        self.actions.openNextImg.setEnabled(True)
-        self.actions.openPrevImg.setEnabled(True)
+    def __import_dir_images(self, dirpath: str, pattern=None, load=True):
+        self.action_open_next.setEnabled(True)
+        self.action_open_prev.setEnabled(True)
 
         if not self.mayContinue() or not dirpath:
             return
