@@ -193,106 +193,81 @@ class MainWindow(QtWidgets.QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
 
         # Actions
-        action = functools.partial(utils.newAction, self)
         shortcuts = self._config["shortcuts"]
-        quit = action(
-            self.tr("&Quit"),
-            self.close,
-            shortcuts["quit"],
-            "quit",
-            self.tr("Quit application"),
-        )
-        open_ = action(
-            self.tr("&Open\n"),
+        quit = self.__new_action(self.tr("&Quit"), self.close, shortcuts["quit"], "quit", self.tr("Quit application"),)
+        open_ = self.__new_action(self.tr("&Open\n"),
             self.openFile,
             shortcuts["open"],
             "open",
-            self.tr("Open image or label file"),
-        )
-        opendir = action(
+            self.tr("Open image or label file"))
+        opendir = self.__new_action(
             self.tr("Open Dir"),
             self.openDirDialog,
             shortcuts["open_dir"],
             "open",
-            self.tr("Open Dir"),
-        )
-        openNextImg = action(
+            self.tr("Open Dir"))
+        openNextImg = self.__new_action(
             self.tr("&Next Image"),
             self.openNextImg,
             shortcuts["open_next"],
             "next",
             self.tr("Open next (hold Ctl+Shift to copy labels)"),
-            enabled=False,
-        )
-        openPrevImg = action(
+            enabled=False)
+        openPrevImg = self.__new_action(
             self.tr("&Prev Image"),
             self.openPrevImg,
             shortcuts["open_prev"],
             "prev",
             self.tr("Open prev (hold Ctl+Shift to copy labels)"),
-            enabled=False,
-        )
-        save = action(
+            enabled=False)
+        save = self.__new_action(
             self.tr("&Save\n"),
             self.saveFile,
             shortcuts["save"],
             "save",
             self.tr("Save labels to file"),
-            enabled=False,
-        )
-        saveAs = action(
+            enabled=False)
+        saveAs = self.__new_action(
             self.tr("&Save As"),
             self.saveFileAs,
             shortcuts["save_as"],
             "save-as",
             self.tr("Save labels to a different file"),
-            enabled=False,
-        )
-
-        deleteFile = action(
+            enabled=False)
+        deleteFile = self.__new_action(
             self.tr("&Delete File"),
             self.deleteFile,
             shortcuts["delete_file"],
             "delete",
             self.tr("Delete current label file"),
-            enabled=False,
-        )
-
-        changeOutputDir = action(
+            enabled=False)
+        changeOutputDir = self.__new_action(
             self.tr("&Change Output Dir"),
             slot=self.changeOutputDirDialog,
             shortcut=shortcuts["save_to"],
             icon="open",
-            tip=self.tr("Change where annotations are loaded/saved"),
-        )
-
-        saveAuto = action(
+            tip=self.tr("Change where annotations are loaded/saved"))
+        saveAuto = self.__new_action(
             text=self.tr("Save &Automatically"),
             slot=lambda x: self.actions.saveAuto.setChecked(x),
             icon="save",
             tip=self.tr("Save automatically"),
             checkable=True,
-            enabled=True,
-        )
+            enabled=True)
         saveAuto.setChecked(self._config["auto_save"])
-
-        saveWithImageData = action(
+        saveWithImageData = self.__new_action(
             text=self.tr("Save With Image Data"),
             slot=self.enableSaveImageWithData,
             tip=self.tr("Save image data in label file"),
             checkable=True,
-            checked=self._config["store_data"],
-        )
-
-        close = action(
+            checked=self._config["store_data"])
+        close = self.__new_action(
             self.tr("&Close"),
             self.closeFile,
             shortcuts["close"],
             "close",
-            self.tr("Close current file"),
-        )
-
-        toggle_keep_prev_mode = action(
+            self.tr("Close current file"))
+        toggle_keep_prev_mode = self.__new_action(
             self.tr("Keep Previous Annotation"),
             self.toggleKeepPrevMode,
             shortcuts["toggle_keep_prev_mode"],
@@ -301,97 +276,81 @@ class MainWindow(QtWidgets.QMainWindow):
             checkable=True,
         )
         toggle_keep_prev_mode.setChecked(self._config["keep_prev"])
-
-        createMode = action(
+        createMode = self.__new_action(
             self.tr("Create Polygons"),
             lambda: self.toggleDrawMode(False, createMode="polygon"),
             shortcuts["create_polygon"],
             "objects",
             self.tr("Start drawing polygons"),
-            enabled=False,
-        )
-        editMode = action(
+            enabled=False)
+        editMode = self.__new_action(
             self.tr("Edit Polygons"),
             self.setEditMode,
             shortcuts["edit_polygon"],
             "edit",
             self.tr("Move and edit the selected polygons"),
-            enabled=False,
-        )
-
-        delete = action(
+            enabled=False)
+        delete = self.__new_action(
             self.tr("Delete Polygons"),
             self.deleteSelectedShape,
             shortcuts["delete_polygon"],
             "cancel",
             self.tr("Delete the selected polygons"),
-            enabled=False,
-        )
-        copy = action(
+            enabled=False)
+        copy = self.__new_action(
             self.tr("Copy Polygons"),
             self.copySelectedShape,
             shortcuts["copy_polygon"],
             "copy_clipboard",
             self.tr("Copy selected polygons to clipboard"),
-            enabled=False,
-        )
-        paste = action(
+            enabled=False)
+        paste = self.__new_action(
             self.tr("Paste Polygons"),
             self.pasteSelectedShape,
             shortcuts["paste_polygon"],
             "paste",
             self.tr("Paste copied polygons"),
-            enabled=False,
-        )
-        undoLastPoint = action(
+            enabled=False)
+        undoLastPoint = self.__new_action(
             self.tr("Undo last point"),
             self.canvas.undoLastPoint,
             shortcuts["undo_last_point"],
             "undo",
             self.tr("Undo last drawn point"),
-            enabled=False,
-        )
-
-        undo = action(
+            enabled=False)
+        undo = self.__new_action(
             self.tr("Undo\n"),
             self.undoShapeEdit,
             shortcuts["undo"],
             "undo",
             self.tr("Undo last add and edit of shape"),
-            enabled=False,
-        )
-
-        hideAll = action(
+            enabled=False)
+        hideAll = self.__new_action(
             self.tr("&Hide\nPolygons"),
             functools.partial(self.togglePolygons, False),
             shortcuts["hide_all_polygons"],
             icon="eye",
             tip=self.tr("Hide all polygons"),
-            enabled=False,
-        )
-        showAll = action(
+            enabled=False)
+        showAll = self.__new_action(
             self.tr("&Show\nPolygons"),
             functools.partial(self.togglePolygons, True),
             shortcuts["show_all_polygons"],
             icon="eye",
             tip=self.tr("Show all polygons"),
-            enabled=False,
-        )
-        toggleAll = action(
+            enabled=False)
+        toggleAll = self.__new_action(
             self.tr("&Toggle\nPolygons"),
             functools.partial(self.togglePolygons, None),
             shortcuts["toggle_all_polygons"],
             icon="eye",
             tip=self.tr("Toggle all polygons"),
-            enabled=False,
-        )
-
-        help = action(
+            enabled=False)
+        help = self.__new_action(
             self.tr("&Tutorial"),
             self.tutorial,
             icon="help",
-            tip=self.tr("Show tutorial page"),
-        )
+            tip=self.tr("Show tutorial page"))
 
         zoom = QtWidgets.QWidgetAction(self)
         zoomBoxLayout = QtWidgets.QVBoxLayout()
@@ -416,64 +375,57 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.zoomWidget.setEnabled(False)
 
-        zoomIn = action(
+        zoomIn = self.__new_action(
             self.tr("Zoom &In"),
             functools.partial(self.addZoom, 1.1),
             shortcuts["zoom_in"],
             "zoom-in",
             self.tr("Increase zoom level"),
-            enabled=False,
-        )
-        zoomOut = action(
+            enabled=False)
+        zoomOut = self.__new_action(
             self.tr("&Zoom Out"),
             functools.partial(self.addZoom, 0.9),
             shortcuts["zoom_out"],
             "zoom-out",
             self.tr("Decrease zoom level"),
-            enabled=False,
-        )
-        zoomOrg = action(
+            enabled=False)
+        zoomOrg = self.__new_action(
             self.tr("&Original size"),
             functools.partial(self.setZoom, 100),
             shortcuts["zoom_to_original"],
             "zoom",
             self.tr("Zoom to original size"),
-            enabled=False,
-        )
-        keepPrevScale = action(
+            enabled=False)
+        keepPrevScale = self.__new_action(
             self.tr("&Keep Previous Scale"),
             self.enableKeepPrevScale,
             tip=self.tr("Keep previous zoom scale"),
             checkable=True,
             checked=self._config["keep_prev_scale"],
-            enabled=True,
-        )
-        fitWindow = action(
+            enabled=True)
+        fitWindow = self.__new_action(
             self.tr("&Fit Window"),
             self.setFitWindow,
             shortcuts["fit_window"],
             "fit-window",
             self.tr("Zoom follows window size"),
             checkable=True,
-            enabled=False,
-        )
-        fitWidth = action(
+            enabled=False)
+        fitWidth = self.__new_action(
             self.tr("Fit &Width"),
             self.setFitWidth,
             shortcuts["fit_width"],
             "fit-width",
             self.tr("Zoom follows window width"),
             checkable=True,
-            enabled=False,
-        )
-        brightnessContrast = action(
+            enabled=False)
+        brightnessContrast = self.__new_action(
             self.tr("&Brightness Contrast"),
             self.brightnessContrast,
             None,
             "color",
             self.tr("Adjust brightness and contrast"),
-            enabled=False,
-        )
+            enabled=False)
         # Group zoom controls into a list for easier toggling.
         zoomActions = (
             self.zoomWidget,
@@ -481,8 +433,7 @@ class MainWindow(QtWidgets.QMainWindow):
             zoomOut,
             zoomOrg,
             fitWindow,
-            fitWidth,
-        )
+            fitWidth)
         self.zoomMode = self.FIT_WINDOW
         fitWindow.setChecked(Qt.Checked)
         self.scalers = {
@@ -492,24 +443,21 @@ class MainWindow(QtWidgets.QMainWindow):
             self.MANUAL_ZOOM: lambda: 1,
         }
 
-        edit = action(
+        edit = self.__new_action(
             self.tr("&Edit Label"),
             self._edit_label,
             shortcuts["edit_label"],
             "edit",
             self.tr("Modify the label of the selected polygon"),
-            enabled=False,
-        )
-
-        fill_drawing = action(
+            enabled=False)
+        fill_drawing = self.__new_action(
             self.tr("Fill Drawing Polygon"),
             self.canvas.setFillDrawing,
             None,
             "color",
             self.tr("Fill polygon while drawing"),
             checkable=True,
-            enabled=True,
-        )
+            enabled=True)
         if self._config["canvas"]["fill_drawing"]:
             fill_drawing.trigger()
 
@@ -645,8 +593,8 @@ class MainWindow(QtWidgets.QMainWindow):
         utils.addActions(
             self.canvas.menus[1],
             (
-                action("&Copy here", self.copyShape),
-                action("&Move here", self.moveShape),
+                self.__new_action("&Copy here", self.copyShape),
+                self.__new_action("&Move here", self.moveShape),
             ),
         )
 
@@ -1926,3 +1874,39 @@ class MainWindow(QtWidgets.QMainWindow):
                     images.append(relativePath)
         images = natsort.os_sorted(images)
         return images
+
+    def __new_action(
+            self,
+            text,
+            slot=None,
+            shortcut=None,
+            icon=None,
+            tip=None,
+            checkable=False,
+            enabled=True,
+            checked=False,
+            ) -> QtWidgets.QAction:
+        """Create a new action and assign callbacks, shortcuts, etc."""
+        a = QtWidgets.QAction(text, self)
+        if icon is not None:
+            a.setIconText(text.replace(" ", "\n"))
+            a.setIcon(self.__new_icon(icon))
+        if shortcut is not None:
+            if isinstance(shortcut, (list, tuple)):
+                a.setShortcuts(shortcut)
+            else:
+                a.setShortcut(shortcut)
+        if tip is not None:
+            a.setToolTip(tip)
+            a.setStatusTip(tip)
+        if slot is not None:
+            a.triggered.connect(slot)
+        if checkable:
+            a.setCheckable(True)
+        a.setEnabled(enabled)
+        a.setChecked(checked)
+        return a
+
+    def __new_icon(self, icon):
+        icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), "../labelQuad/icons")
+        return QtGui.QIcon(osp.join(":/", icons_dir, "%s.png" % icon))
