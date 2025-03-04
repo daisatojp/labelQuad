@@ -103,11 +103,7 @@ class MainWindow(QMainWindow):
         self.shape_dock.setWidget(self.labelList)
 
         self.uniqLabelList = UniqueLabelQListWidget()
-        self.uniqLabelList.setToolTip(
-            self.tr(
-                'Select label to start annotating for it. ' 'Press "Esc" to deselect.'
-            )
-        )
+        self.uniqLabelList.setToolTip(self.tr('Select label to start annotating for it. ' 'Press "Esc" to deselect.'))
         if self._config['labels']:
             for label in self._config['labels']:
                 item = self.uniqLabelList.createItemFromLabel(label)
@@ -245,84 +241,84 @@ class MainWindow(QMainWindow):
             checkable=True,
             enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
-        close = self.__new_action(
+        self.action_close = self.__new_action(
             self.tr('&Close'),
             self.closeFile,
             shortcuts['close'],
             'close',
             self.tr('Close current file'))
-        toggle_keep_prev_mode = self.__new_action(
+        self.action_toggle_keep_prev_mode = self.__new_action(
             self.tr('Keep Previous Annotation'),
             self.toggleKeepPrevMode,
             shortcuts['toggle_keep_prev_mode'],
             None,
             self.tr('Toggle "keep previous annotation" mode'),
             checkable=True)
-        toggle_keep_prev_mode.setChecked(self._config['keep_prev'])
-        createMode = self.__new_action(
+        self.action_toggle_keep_prev_mode.setChecked(self._config['keep_prev'])
+        self.action_create_mode = self.__new_action(
             self.tr('Create Polygons'),
             lambda: self.toggleDrawMode(False, createMode='polygon'),
             shortcuts['create_polygon'],
             'objects',
             self.tr('Start drawing polygons'),
             enabled=False)
-        editMode = self.__new_action(
+        self.action_edit_mode = self.__new_action(
             self.tr('Edit Polygons'),
             self.setEditMode,
             shortcuts['edit_polygon'],
             'edit',
             self.tr('Move and edit the selected polygons'),
             enabled=False)
-        delete = self.__new_action(
+        self.action_delete = self.__new_action(
             self.tr('Delete Polygons'),
             self.deleteSelectedShape,
             shortcuts['delete_polygon'],
             'cancel',
             self.tr('Delete the selected polygons'),
             enabled=False)
-        copy = self.__new_action(
+        self.action_copy = self.__new_action(
             self.tr('Copy Polygons'),
             self.copySelectedShape,
             shortcuts['copy_polygon'],
             'copy_clipboard',
             self.tr('Copy selected polygons to clipboard'),
             enabled=False)
-        paste = self.__new_action(
+        self.action_paste = self.__new_action(
             self.tr('Paste Polygons'),
             self.pasteSelectedShape,
             shortcuts['paste_polygon'],
             'paste',
             self.tr('Paste copied polygons'),
             enabled=False)
-        undoLastPoint = self.__new_action(
+        self.action_undo_last_point = self.__new_action(
             self.tr('Undo last point'),
             self.canvas.undoLastPoint,
             shortcuts['undo_last_point'],
             'undo',
             self.tr('Undo last drawn point'),
             enabled=False)
-        undo = self.__new_action(
+        self.action_undo = self.__new_action(
             self.tr('Undo\n'),
             self.undoShapeEdit,
             shortcuts['undo'],
             'undo',
             self.tr('Undo last add and edit of shape'),
             enabled=False)
-        hideAll = self.__new_action(
+        self.action_hide_all = self.__new_action(
             self.tr('&Hide\nPolygons'),
             functools.partial(self.togglePolygons, False),
             shortcuts['hide_all_polygons'],
             icon='eye',
             tip=self.tr('Hide all polygons'),
             enabled=False)
-        showAll = self.__new_action(
+        self.action_show_all = self.__new_action(
             self.tr('&Show\nPolygons'),
             functools.partial(self.togglePolygons, True),
             shortcuts['show_all_polygons'],
             icon='eye',
             tip=self.tr('Show all polygons'),
             enabled=False)
-        toggleAll = self.__new_action(
+        self.action_toggle_all = self.__new_action(
             self.tr('&Toggle\nPolygons'),
             functools.partial(self.togglePolygons, None),
             shortcuts['toggle_all_polygons'],
@@ -353,35 +349,35 @@ class MainWindow(QMainWindow):
         )
         self.zoomWidget.setEnabled(False)
 
-        zoomIn = self.__new_action(
+        self.action_zoom_in = self.__new_action(
             self.tr('Zoom &In'),
             functools.partial(self.addZoom, 1.1),
             shortcuts['zoom_in'],
             'zoom-in',
             self.tr('Increase zoom level'),
             enabled=False)
-        zoomOut = self.__new_action(
+        self.action_zoom_out = self.__new_action(
             self.tr('&Zoom Out'),
             functools.partial(self.addZoom, 0.9),
             shortcuts['zoom_out'],
             'zoom-out',
             self.tr('Decrease zoom level'),
             enabled=False)
-        zoomOrg = self.__new_action(
+        self.action_zoom_org = self.__new_action(
             self.tr('&Original size'),
             functools.partial(self.setZoom, 100),
             shortcuts['zoom_to_original'],
             'zoom',
             self.tr('Zoom to original size'),
             enabled=False)
-        keepPrevScale = self.__new_action(
+        self.action_keep_prev_scale = self.__new_action(
             self.tr('&Keep Previous Scale'),
             self.enableKeepPrevScale,
             tip=self.tr('Keep previous zoom scale'),
             checkable=True,
             checked=self._config['keep_prev_scale'],
             enabled=True)
-        fitWindow = self.__new_action(
+        self.action_fit_window = self.__new_action(
             self.tr('&Fit Window'),
             self.setFitWindow,
             shortcuts['fit_window'],
@@ -389,7 +385,7 @@ class MainWindow(QMainWindow):
             self.tr('Zoom follows window size'),
             checkable=True,
             enabled=False)
-        fitWidth = self.__new_action(
+        self.action_fit_width = self.__new_action(
             self.tr('Fit &Width'),
             self.setFitWidth,
             shortcuts['fit_width'],
@@ -397,38 +393,29 @@ class MainWindow(QMainWindow):
             self.tr('Zoom follows window width'),
             checkable=True,
             enabled=False)
-        brightnessContrast = self.__new_action(
+        self.action_brightness_contrast = self.__new_action(
             self.tr('&Brightness Contrast'),
             self.brightnessContrast,
             None,
             'color',
             self.tr('Adjust brightness and contrast'),
             enabled=False)
-        # Group zoom controls into a list for easier toggling.
-        zoomActions = (
-            self.zoomWidget,
-            zoomIn,
-            zoomOut,
-            zoomOrg,
-            fitWindow,
-            fitWidth)
         self.zoomMode = self.FIT_WINDOW
-        fitWindow.setChecked(Qt.Checked)
+        self.action_fit_window.setChecked(Qt.Checked)
         self.scalers = {
             self.FIT_WINDOW: self.scaleFitWindow,
             self.FIT_WIDTH: self.scaleFitWidth,
             # Set to one to scale to 100% when loading files.
-            self.MANUAL_ZOOM: lambda: 1,
-        }
+            self.MANUAL_ZOOM: lambda: 1}
 
-        edit = self.__new_action(
+        self.action_edit = self.__new_action(
             self.tr('&Edit Label'),
             self._edit_label,
             shortcuts['edit_label'],
             'edit',
             self.tr('Modify the label of the selected polygon'),
             enabled=False)
-        fill_drawing = self.__new_action(
+        self.action_fill_drawing = self.__new_action(
             self.tr('Fill Drawing Polygon'),
             self.canvas.setFillDrawing,
             None,
@@ -437,143 +424,78 @@ class MainWindow(QMainWindow):
             checkable=True,
             enabled=True)
         if self._config['canvas']['fill_drawing']:
-            fill_drawing.trigger()
+            self.action_fill_drawing.trigger()
 
         # Label list context menu.
         labelMenu = QMenu()
-        utils.addActions(labelMenu, (edit, delete))
+        utils.addActions(labelMenu, (self.action_edit, self.action_delete))
         self.labelList.setContextMenuPolicy(Qt.CustomContextMenu)
         self.labelList.customContextMenuRequested.connect(self.popLabelListMenu)
 
-        # Store actions for further handling.
-        self.actions = utils.struct(
-            changeOutputDir=self.action_change_output_dir,
-            save=self.action_save,
-            saveAs=self.action_save_as,
-            open=self.action_open,
-            close=close,
-            deleteFile=self.action_delete_file,
-            toggleKeepPrevMode=toggle_keep_prev_mode,
-            delete=delete,
-            edit=edit,
-            copy=copy,
-            paste=paste,
-            undoLastPoint=undoLastPoint,
-            undo=undo,
-            createMode=createMode,
-            editMode=editMode,
-            zoom=zoom,
-            zoomIn=zoomIn,
-            zoomOut=zoomOut,
-            zoomOrg=zoomOrg,
-            keepPrevScale=keepPrevScale,
-            fitWindow=fitWindow,
-            fitWidth=fitWidth,
-            brightnessContrast=brightnessContrast,
-            zoomActions=zoomActions,
-            openNextImg=self.action_open_next,
-            openPrevImg=self.action_open_prev,
-            tool=(),
-            # XXX: need to add some actions here to activate the shortcut
-            editMenu=(
-                edit,
-                copy,
-                paste,
-                delete,
-                None,
-                undo,
-                undoLastPoint,
-                None,
-                None,
-                toggle_keep_prev_mode,
-            ),
-            # menu shown at right click
-            menu=(
-                createMode,
-                editMode,
-                edit,
-                copy,
-                paste,
-                delete,
-                undo,
-                undoLastPoint,
-            ),
-            onLoadActive=(
-                close,
-                createMode,
-                editMode,
-                brightnessContrast,
-            ),
-            onShapesPresent=(self.action_save_as, hideAll, showAll, toggleAll),
-        )
-
-        self.menus = utils.struct(
-            file=self.menu(self.tr('&File')),
-            edit=self.menu(self.tr('&Edit')),
-            view=self.menu(self.tr('&View')),
-            help=self.menu(self.tr('&Help')),
-            recentFiles=QMenu(self.tr('Open &Recent')),
-            labelList=labelMenu,
-        )
+        
+        self.menu_file = self.menu(self.tr('&File'))
+        self.menu_edit = self.menu(self.tr('&Edit'))
+        self.menu_view = self.menu(self.tr('&View'))
+        self.menu_help = self.menu(self.tr('&Help'))
+        self.menu_recent_files = QMenu(self.tr('Open &Recent'))
+        self.menu_label_list = labelMenu
 
         utils.addActions(
-            self.menus.file,
-            (
-                self.action_open_image_dir,
-                self.action_open,
-                self.action_open_next,
-                self.action_open_prev,
-                self.menus.recentFiles,
-                self.action_save,
-                self.action_save_as,
-                self.action_save_auto,
-                self.action_change_output_dir,
-                close,
-                self.action_delete_file,
-                None,
-                self.action_quit,
-            ),
-        )
-        utils.addActions(self.menus.help, ())
+            self.menu_file,
+            (self.action_open_image_dir,
+             self.action_open,
+             self.action_open_next,
+             self.action_open_prev,
+             self.menu_recent_files,
+             self.action_save,
+             self.action_save_as,
+             self.action_save_auto,
+             self.action_change_output_dir,
+             self.action_close,
+             self.action_delete_file,
+             None,
+             self.action_quit))
+        utils.addActions(self.menu_help, ())
         utils.addActions(
-            self.menus.view,
-            (
-                self.label_dock.toggleViewAction(),
-                self.shape_dock.toggleViewAction(),
-                self.file_dock.toggleViewAction(),
-                None,
-                fill_drawing,
-                None,
-                hideAll,
-                showAll,
-                toggleAll,
-                None,
-                zoomIn,
-                zoomOut,
-                zoomOrg,
-                keepPrevScale,
-                None,
-                fitWindow,
-                fitWidth,
-                None,
-                brightnessContrast,
-            ),
-        )
+            self.menu_view,
+            (self.label_dock.toggleViewAction(),
+             self.shape_dock.toggleViewAction(),
+             self.file_dock.toggleViewAction(),
+             None,
+             self.action_fill_drawing,
+             None,
+             self.action_hide_all,
+             self.action_show_all,
+             self.action_toggle_all,
+             None,
+             self.action_zoom_in,
+             self.action_zoom_out,
+             self.action_zoom_org,
+             self.action_keep_prev_scale,
+             None,
+             self.action_fit_window,
+             self.action_fit_width,
+             None,
+             self.action_brightness_contrast))
+        self.menu_file.aboutToShow.connect(self.updateFileMenu)
 
-        self.menus.file.aboutToShow.connect(self.updateFileMenu)
-
-        # Custom context menu for the canvas widget:
-        utils.addActions(self.canvas.menus[0], self.actions.menu)
+        utils.addActions(
+            self.canvas.menus[0],
+            (self.action_create_mode,
+             self.action_edit_mode,
+             self.action_edit,
+             self.action_copy,
+             self.action_paste,
+             self.action_delete,
+             self.action_undo,
+             self.action_undo_last_point))
         utils.addActions(
             self.canvas.menus[1],
-            (
-                self.__new_action('&Copy here', self.copyShape),
-                self.__new_action('&Move here', self.moveShape),
-            ),
-        )
+            (self.__new_action('&Copy here', self.copyShape),
+             self.__new_action('&Move here', self.moveShape)))
 
         self.tools = self.toolbar('Tools')
-        self.actions.tool = (
+        self.actions_tool = (
             self.action_open_image_dir,
             self.action_open,
             self.action_open_prev,
@@ -581,15 +503,20 @@ class MainWindow(QMainWindow):
             self.action_save,
             self.action_delete_file,
             None,
-            createMode,
-            editMode,
-            delete,
-            undo,
-            brightnessContrast,
+            self.action_create_mode,
+            self.action_edit_mode,
+            self.action_delete,
+            self.action_undo,
+            self.action_brightness_contrast,
             None,
-            fitWindow,
+            self.action_fit_window,
             zoom,
             None)
+        self.actions_on_shapes_present = (
+            self.action_save_as,
+            self.action_hide_all,
+            self.action_show_all,
+            self.action_toggle_all)
 
         self.statusBar().showMessage(str(self.tr('%s started.')) % __appname__)
         self.statusBar().show()
@@ -652,10 +579,6 @@ class MainWindow(QMainWindow):
 
         self.populateModeActions()
 
-        # self.firstStart = True
-        # if self.firstStart:
-        #    QWhatsThis.enterWhatsThisMode()
-
     def menu(self, title, actions=None):
         menu = self.menuBar().addMenu(title)
         if actions:
@@ -678,22 +601,37 @@ class MainWindow(QMainWindow):
         return not len(self.labelList)
 
     def populateModeActions(self):
-        tool, menu = self.actions.tool, self.actions.menu
         self.tools.clear()
-        utils.addActions(self.tools, tool)
+        utils.addActions(self.tools, self.actions_tool)
         self.canvas.menus[0].clear()
-        utils.addActions(self.canvas.menus[0], menu)
-        self.menus.edit.clear()
-        actions = (
-            self.actions.createMode,
-            self.actions.editMode,
-        )
-        utils.addActions(self.menus.edit, actions + self.actions.editMenu)
+        utils.addActions(
+            self.canvas.menus[0],
+            (self.action_create_mode,
+             self.action_edit_mode,
+             self.action_edit,
+             self.action_copy,
+             self.action_paste,
+             self.action_delete,
+             self.action_undo,
+             self.action_undo_last_point))
+        self.menu_edit.clear()
+        utils.addActions(
+            self.menu_edit,
+            (self.action_create_mode,
+             self.action_edit_mode,
+             self.action_edit,
+             self.action_copy,
+             self.action_paste,
+             self.action_delete,
+             None,
+             self.action_undo,
+             self.action_undo_last_point,
+             None,
+             None,
+             self.action_toggle_keep_prev_mode))
 
     def setDirty(self):
-        # Even if we autosave the file, we keep the ability to undo
-        self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
-
+        self.action_undo.setEnabled(self.canvas.isShapeRestorable)
         if self._config['auto_save'] or self.action_save_auto.isChecked():
             label_file = osp.splitext(self.imagePath)[0] + '.json'
             if self.output_dir:
@@ -710,24 +648,29 @@ class MainWindow(QMainWindow):
 
     def setClean(self):
         self.dirty = False
-        self.actions.save.setEnabled(False)
-        self.actions.createMode.setEnabled(True)
+        self.action_save.setEnabled(False)
+        self.action_create_mode.setEnabled(True)
         title = __appname__
         if self.filename is not None:
             title = '{} - {}'.format(title, self.filename)
         self.setWindowTitle(title)
 
         if self.hasLabelFile():
-            self.actions.deleteFile.setEnabled(True)
+            self.action_delete_file.setEnabled(True)
         else:
-            self.actions.deleteFile.setEnabled(False)
+            self.action_delete_file.setEnabled(False)
 
-    def toggleActions(self, value=True):
-        '''Enable/Disable widgets which depend on an opened image.'''
-        for z in self.actions.zoomActions:
-            z.setEnabled(value)
-        for action in self.actions.onLoadActive:
-            action.setEnabled(value)
+    def toggleActions(self, value: bool = True):
+        self.zoomWidget.setEnabled(value)
+        self.action_zoom_in.setEnabled(value)
+        self.action_zoom_out.setEnabled(value)
+        self.action_zoom_org.setEnabled(value)
+        self.action_fit_window.setEnabled(value)
+        self.action_fit_width.setEnabled(value)
+        self.action_close.setEnabled(value)
+        self.action_create_mode.setEnabled(value)
+        self.action_edit_mode.setEnabled(value)
+        self.action_brightness_contrast.setEnabled(value)
 
     def queueEvent(self, function):
         QTimer.singleShot(0, function)
@@ -763,25 +706,21 @@ class MainWindow(QMainWindow):
         self.canvas.restoreShape()
         self.labelList.clear()
         self.loadShapes(self.canvas.shapes)
-        self.actions.undo.setEnabled(self.canvas.isShapeRestorable)
-
-    def tutorial(self):
-        url = 'https://github.com/labelmeai/labelme/tree/main/examples/tutorial'  # NOQA
-        webbrowser.open(url)
+        self.action_undo.setEnabled(self.canvas.isShapeRestorable)
 
     def toggleDrawingSensitive(self, drawing=True):
         """Toggle drawing sensitive.
 
         In the middle of drawing, toggling between modes should be disabled.
         """
-        self.actions.editMode.setEnabled(not drawing)
-        self.actions.undoLastPoint.setEnabled(drawing)
-        self.actions.undo.setEnabled(not drawing)
-        self.actions.delete.setEnabled(not drawing)
+        self.action_edit_mode.setEnabled(not drawing)
+        self.action_undo_last_point.setEnabled(drawing)
+        self.action_undo.setEnabled(not drawing)
+        self.action_delete.setEnabled(not drawing)
 
     def toggleDrawMode(self, edit=True, createMode='polygon'):
         draw_actions = {
-            'polygon': self.actions.createMode,
+            'polygon': self.action_create_mode,
         }
 
         self.canvas.setEditing(edit)
@@ -792,7 +731,7 @@ class MainWindow(QMainWindow):
         else:
             for draw_mode, draw_action in draw_actions.items():
                 draw_action.setEnabled(createMode != draw_mode)
-        self.actions.editMode.setEnabled(not edit)
+        self.action_edit_mode.setEnabled(not edit)
 
     def setEditMode(self):
         self.toggleDrawMode(True)
@@ -803,7 +742,7 @@ class MainWindow(QMainWindow):
         def exists(filename):
             return osp.exists(str(filename))
 
-        menu = self.menus.recentFiles
+        menu = self.menu_recent_files
         menu.clear()
         files = [f for f in self.recentFiles if f != current and exists(f)]
         for i, f in enumerate(files):
@@ -813,7 +752,7 @@ class MainWindow(QMainWindow):
             menu.addAction(action)
 
     def popLabelListMenu(self, point):
-        self.menus.labelList.exec_(self.labelList.mapToGlobal(point))
+        self.menu_label_list.exec_(self.labelList.mapToGlobal(point))
 
     def validateLabel(self, label):
         # no validation
@@ -958,9 +897,9 @@ class MainWindow(QMainWindow):
             self.labelList.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
-        self.actions.delete.setEnabled(n_selected)
-        self.actions.copy.setEnabled(n_selected)
-        self.actions.edit.setEnabled(n_selected)
+        self.action_delete.setEnabled(n_selected)
+        self.action_copy.setEnabled(n_selected)
+        self.action_edit.setEnabled(n_selected)
 
     def addLabel(self, shape):
         if shape.group_id is None:
@@ -975,7 +914,7 @@ class MainWindow(QMainWindow):
             rgb = self._get_rgb_by_label(shape.label)
             self.uniqLabelList.setItemLabel(item, shape.label, rgb)
         self.labelDialog.addLabelHistory(shape.label)
-        for action in self.actions.onShapesPresent:
+        for action in self.actions_on_shapes_present:
             action.setEnabled(True)
 
         self._update_shape_color(shape)
@@ -1114,7 +1053,7 @@ class MainWindow(QMainWindow):
 
     def copySelectedShape(self):
         self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
-        self.actions.paste.setEnabled(len(self._copied_shapes) > 0)
+        self.action_paste.setEnabled(len(self._copied_shapes) > 0)
 
     def labelSelectionChanged(self):
         if self._noSelectionSlot:
@@ -1169,9 +1108,9 @@ class MainWindow(QMainWindow):
             shape.group_id = group_id
             shape.description = description
             self.addLabel(shape)
-            self.actions.editMode.setEnabled(True)
-            self.actions.undoLastPoint.setEnabled(False)
-            self.actions.undo.setEnabled(True)
+            self.action_edit_mode.setEnabled(True)
+            self.action_undo_last_point.setEnabled(False)
+            self.action_undo.setEnabled(True)
             self.setDirty()
         else:
             self.canvas.undoLastLine()
@@ -1188,8 +1127,8 @@ class MainWindow(QMainWindow):
         self.scroll_values[orientation][self.filename] = value
 
     def setZoom(self, value):
-        self.actions.fitWidth.setChecked(False)
-        self.actions.fitWindow.setChecked(False)
+        self.action_fit_width.setChecked(False)
+        self.action_fit_window.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
         self.zoomWidget.setValue(value)
         self.zoom_values[self.filename] = (self.zoomMode, value)
@@ -1227,19 +1166,19 @@ class MainWindow(QMainWindow):
 
     def setFitWindow(self, value=True):
         if value:
-            self.actions.fitWidth.setChecked(False)
+            self.action_fit_width.setChecked(False)
         self.zoomMode = self.FIT_WINDOW if value else self.MANUAL_ZOOM
         self.adjustScale()
 
     def setFitWidth(self, value=True):
         if value:
-            self.actions.fitWindow.setChecked(False)
+            self.action_fit_window.setChecked(False)
         self.zoomMode = self.FIT_WIDTH if value else self.MANUAL_ZOOM
         self.adjustScale()
 
     def enableKeepPrevScale(self, enabled):
         self._config['keep_prev_scale'] = enabled
-        self.actions.keepPrevScale.setChecked(enabled)
+        self.action_keep_prev_scale.setChecked(enabled)
 
     def onNewBrightnessContrast(self, qimage):
         self.canvas.loadPixmap(QPixmap.fromImage(qimage), clear_shapes=False)
@@ -1628,7 +1567,7 @@ class MainWindow(QMainWindow):
         self.setClean()
         self.toggleActions(False)
         self.canvas.setEnabled(False)
-        self.actions.saveAs.setEnabled(False)
+        self.action_save_as.setEnabled(False)
 
     def getLabelFile(self):
         if self.filename.lower().endswith('.json'):
@@ -1712,7 +1651,7 @@ class MainWindow(QMainWindow):
             self.remLabels(self.canvas.deleteSelected())
             self.setDirty()
             if self.noShapes():
-                for action in self.actions.onShapesPresent:
+                for action in self.actions_on_shapes_present:
                     action.setEnabled(False)
 
     def copyShape(self):
@@ -1772,8 +1711,8 @@ class MainWindow(QMainWindow):
             self.fileListWidget.addItem(item)
 
         if len(self.imageList) > 1:
-            self.actions.openNextImg.setEnabled(True)
-            self.actions.openPrevImg.setEnabled(True)
+            self.action_open_next.setEnabled(True)
+            self.action_open_prev.setEnabled(True)
 
         self.openNextImg()
 
