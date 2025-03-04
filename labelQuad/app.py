@@ -345,11 +345,6 @@ class MainWindow(QtWidgets.QMainWindow):
             icon="eye",
             tip=self.tr("Toggle all polygons"),
             enabled=False)
-        help = self.__new_action(
-            self.tr("&Tutorial"),
-            self.tutorial,
-            icon="help",
-            tip=self.tr("Show tutorial page"))
 
         zoom = QtWidgets.QWidgetAction(self)
         zoomBoxLayout = QtWidgets.QVBoxLayout()
@@ -559,7 +554,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 quit,
             ),
         )
-        utils.addActions(self.menus.help, (help,))
+        utils.addActions(self.menus.help, ())
         utils.addActions(
             self.menus.view,
             (
