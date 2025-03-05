@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.__copy_selected_shape, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
         self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
         self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
-        self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.undoShapeEdit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
+        self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.__undo_shape_edit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
         self.action_hide_all = self.__new_action(self.tr('&Hide\nPolygons'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all polygons'), enabled=False)
         self.action_show_all = self.__new_action(self.tr('&Show\nPolygons'), slot=partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all polygons'), enabled=False)
         self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
@@ -426,7 +426,7 @@ class MainWindow(QMainWindow):
             self.recentFiles.pop()
         self.recentFiles.insert(0, filename)
 
-    def undoShapeEdit(self):
+    def __undo_shape_edit(self) -> None:
         self.canvas.restoreShape()
         self.quad_list.clear()
         self.__load_shapes(self.canvas.shapes)
@@ -572,7 +572,7 @@ class MainWindow(QMainWindow):
         self.action_copy.setEnabled(n_selected)
         self.action_edit.setEnabled(n_selected)
 
-    def addLabel(self, shape):
+    def __add_label(self, shape) -> None:
         text = shape.label
         label_list_item = LabelListWidgetItem(text, shape)
         self.quad_list.addItem(label_list_item)
@@ -628,7 +628,7 @@ class MainWindow(QMainWindow):
     def __load_shapes(self, shapes, replace=True) -> None:
         self._noSelectionSlot = True
         for shape in shapes:
-            self.addLabel(shape)
+            self.__add_label(shape)
         self.quad_list.clearSelection()
         self._noSelectionSlot = False
         self.canvas.loadShapes(shapes, replace=replace)
@@ -753,7 +753,7 @@ class MainWindow(QMainWindow):
             self.quad_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
             shape.description = description
-            self.addLabel(shape)
+            self.__add_label(shape)
             self.action_edit_mode.setEnabled(True)
             self.action_undo_last_point.setEnabled(False)
             self.action_undo.setEnabled(True)
@@ -762,24 +762,24 @@ class MainWindow(QMainWindow):
             self.canvas.undoLastLine()
             self.canvas.shapesBackups.pop()
 
-    def __scroll_request(self, delta, orientation):
-        units = -delta * 0.1  # natural scroll
+    def __scroll_request(self, delta, orientation) -> None:
+        units = -delta * 0.1
         bar = self.scroll_bars[orientation]
         value = bar.value() + bar.singleStep() * units
         self.__set_scroll(orientation, value)
 
-    def __set_scroll(self, orientation, value):
+    def __set_scroll(self, orientation, value) -> None:
         self.scroll_bars[orientation].setValue(int(value))
         self.scroll_values[orientation][self.filename] = value
 
-    def __set_zoom(self, value):
+    def __set_zoom(self, value) -> None:
         self.action_fit_width.setChecked(False)
         self.action_fit_window.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
         self.zoom_widget.setValue(value)
         self.zoom_values[self.filename] = (self.zoomMode, value)
 
-    def __add_zoom(self, increment: float = 1.1):
+    def __add_zoom(self, increment: float = 1.1) -> None:
         zoom_value = self.zoom_widget.value() * increment
         if increment > 1:
             zoom_value = math.ceil(zoom_value)
@@ -787,7 +787,7 @@ class MainWindow(QMainWindow):
             zoom_value = math.floor(zoom_value)
         self.__set_zoom(zoom_value)
 
-    def __zoom_request(self, delta, pos):
+    def __zoom_request(self, delta, pos) -> None:
         canvas_width_old = self.canvas.width()
         units = 1.1
         if delta < 0:
@@ -811,14 +811,14 @@ class MainWindow(QMainWindow):
         self.zoomMode = self.FIT_WIDTH
         self.__adjust_scale()
 
-    def __enable_keep_prev_scale(self, enabled):
+    def __enable_keep_prev_scale(self, enabled) -> None:
         self._config['keep_prev_scale'] = enabled
         self.action_keep_prev_scale.setChecked(enabled)
 
-    def __on_new_brightness_contrast(self, qimage):
+    def __on_new_brightness_contrast(self, qimage) -> None:
         self.canvas.loadPixmap(QPixmap.fromImage(qimage), clear_shapes=False)
 
-    def __brightness_contrast(self, value):
+    def __brightness_contrast(self, value) -> None:
         dialog = BrightnessContrastDialog(
             utils.img_data_to_pil(self.imageData),
             self.__on_new_brightness_contrast,
@@ -833,7 +833,7 @@ class MainWindow(QMainWindow):
         contrast = dialog.slider_contrast.value()
         self.brightness_contrast_values[self.filename] = (brightness, contrast)
 
-    def __toggle_polygons(self, value):
+    def __toggle_polygons(self, value) -> None:
         flag = value
         for item in self.quad_list:
             if value is None:
@@ -939,7 +939,7 @@ class MainWindow(QMainWindow):
         self.canvas.setFocus()
         self.__status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
 
-    def __paint_canvas(self):
+    def __paint_canvas(self) -> None:
         assert not self.image.isNull(), 'cannot paint null image'
         self.canvas.scale = 0.01 * self.zoom_widget.value()
         self.canvas.adjustSize()
@@ -1037,14 +1037,14 @@ class MainWindow(QMainWindow):
             for action in self.actions_on_shapes_present:
                 action.setEnabled(False)
 
-    def __copy_shape(self):
+    def __copy_shape(self) -> None:
         self.canvas.endMove(copy=True)
         for shape in self.canvas.selectedShapes:
-            self.addLabel(shape)
+            self.__add_label(shape)
         self.quad_list.clearSelection()
         self.__set_dirty()
 
-    def __move_shape(self):
+    def __move_shape(self) -> None:
         self.canvas.endMove(copy=False)
         self.__set_dirty()
 
