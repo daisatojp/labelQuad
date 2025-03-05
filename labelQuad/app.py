@@ -373,6 +373,105 @@ class MainWindow(QMainWindow):
             self.__adjust_scale()
         super(MainWindow, self).resizeEvent(event)
 
+    def __load_file(self) -> None:
+        image_path = self.__current_image_path()
+        annot_path = self.__current_annot_path()
+        if image_path is None:
+            return
+        self.__reset_state()
+        self.canvas.setEnabled(False)
+        if not QFile.exists(image_path):
+            self.__error_message(
+                self.tr(f'Error opening file'),
+                self.tr(f'No such file: <b>{image_path}</b>'))
+        self.__status(self.tr(f'Loading {image_path}...'))
+        image_data = LabelFile.load_image_file(image_path)
+        self.labelFile = None
+        image = QImage.fromData(image_data)
+        if image.isNull():
+            formats = [
+                '*.{}'.format(fmt.data().decode())
+                for fmt in QImageReader.supportedImageFormats()
+            ]
+            self.__error_message(
+                self.tr('Error opening file'),
+                self.tr(
+                    '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
+                    'Supported image formats: {1}</p>'
+                ).format(image_path, ','.join(formats)))
+            self.__status(self.tr('Error reading %s') % image_path)
+        self.image = image
+        self.image_path = image_path
+        self.image_data = image_data
+        self.canvas.loadPixmap(QPixmap.fromImage(image))
+        self.__set_clean()
+        self.canvas.setEnabled(True)
+        is_initial_load = not self.zoom_values
+        if self.image_path in self.zoom_values:
+            self.zoomMode = self.zoom_values[self.image_path][0]
+            self.__set_zoom(self.zoom_values[self.image_path][1])
+        elif is_initial_load or not self._config['keep_prev_scale']:
+            self.__adjust_scale(initial=True)
+        for orientation in self.scroll_values:
+            if self.image_path in self.scroll_values[orientation]:
+                self.__set_scroll(orientation, self.scroll_values[orientation][self.image_path])
+        dialog = BrightnessContrastDialog(
+            utils.img_data_to_pil(self.image_data),
+            self.__on_new_brightness_contrast,
+            parent=self)
+        brightness, contrast = self.brightness_contrast_values.get(
+            self.image_path, (None, None))
+        if self._config['keep_prev_brightness'] and self.recentFiles:
+            brightness, _ = self.brightness_contrast_values.get(
+                self.recentFiles[0], (None, None))
+        if self._config['keep_prev_contrast'] and self.recentFiles:
+            _, contrast = self.brightness_contrast_values.get(
+                self.recentFiles[0], (None, None))
+        if brightness is not None:
+            dialog.slider_brightness.setValue(brightness)
+        if contrast is not None:
+            dialog.slider_contrast.setValue(contrast)
+        self.brightness_contrast_values[self.image_path] = (brightness, contrast)
+        if brightness is not None or contrast is not None:
+            dialog.onNewValue(None)
+        self.__paint_canvas()
+        self.__add_recent_file(self.image_path)
+        self.__toggle_actions(True)
+        self.canvas.setFocus()
+        self.__status(self.tr(f'Loaded {image_path}'))
+
+    def __save(self) -> None:
+        if self.image_path is None:
+            return
+        image_path = self.image_path
+        annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
+        annot_path = osp.join(self.annot_dir, annot_path)
+        def format_shape(s: Shape) -> dict:
+            pts = s.points
+            return dict(
+                label=s.label,
+                p1x=round(pts[0].x(), 2), p1y=round(pts[0].y(), 2),
+                p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
+                p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
+                p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
+        try:
+            image_path = osp.relpath(annot_path, osp.dirname(image_path))
+            if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
+                os.makedirs(osp.dirname(annot_path))
+            lf = LabelFile()
+            lf.save(
+                filename=annot_path,
+                shapes=[format_shape(item.shape()) for item in self.quad_list],
+                imagePath=image_path,
+                imageHeight=self.image.height(),
+                imageWidth=self.image.width())
+            self.labelFile = lf
+            items = self.file_list.findItems(image_path, Qt.MatchExactly)
+            if len(items) == 1:
+                items[0].setCheckState(Qt.Checked)
+        except LabelFileError as e:
+            self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
+
     def __set_dirty(self) -> None:
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
         if self.action_save_auto.isChecked():
@@ -627,38 +726,6 @@ class MainWindow(QMainWindow):
             s.append(shape)
         self.__load_shapes(s)
 
-    def __save(self) -> None:
-        if self.image_path is None:
-            return
-        image_path = self.image_path
-        annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
-        annot_path = osp.join(self.annot_dir, annot_path)
-        def format_shape(s: Shape) -> dict:
-            pts = s.points
-            return dict(
-                label=s.label,
-                p1x=round(pts[0].x(), 2), p1y=round(pts[0].y(), 2),
-                p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
-                p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
-                p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
-        try:
-            image_path = osp.relpath(annot_path, osp.dirname(image_path))
-            if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
-                os.makedirs(osp.dirname(annot_path))
-            lf = LabelFile()
-            lf.save(
-                filename=annot_path,
-                shapes=[format_shape(item.shape()) for item in self.quad_list],
-                imagePath=image_path,
-                imageHeight=self.image.height(),
-                imageWidth=self.image.width())
-            self.labelFile = lf
-            items = self.file_list.findItems(image_path, Qt.MatchExactly)
-            if len(items) == 1:
-                items[0].setCheckState(Qt.Checked)
-        except LabelFileError as e:
-            self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
-
     def __paste_selected_shape(self) -> None:
         self.__load_shapes(self._copied_shapes, replace=False)
         self.__set_dirty()
@@ -792,73 +859,6 @@ class MainWindow(QMainWindow):
             if value is None:
                 flag = item.checkState() == Qt.Unchecked
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
-
-    def __load_file(self) -> None:
-        image_path = self.__current_image_path()
-        annot_path = self.__current_annot_path()
-        if image_path is None:
-            return
-        self.__reset_state()
-        self.canvas.setEnabled(False)
-        if not QFile.exists(image_path):
-            self.__error_message(
-                self.tr(f'Error opening file'),
-                self.tr(f'No such file: <b>{image_path}</b>'))
-        self.__status(self.tr(f'Loading {image_path}...'))
-        image_data = LabelFile.load_image_file(image_path)
-        self.labelFile = None
-        image = QImage.fromData(image_data)
-        if image.isNull():
-            formats = [
-                '*.{}'.format(fmt.data().decode())
-                for fmt in QImageReader.supportedImageFormats()
-            ]
-            self.__error_message(
-                self.tr('Error opening file'),
-                self.tr(
-                    '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
-                    'Supported image formats: {1}</p>'
-                ).format(image_path, ','.join(formats)))
-            self.__status(self.tr('Error reading %s') % image_path)
-        self.image = image
-        self.image_path = image_path
-        self.image_data = image_data
-        self.canvas.loadPixmap(QPixmap.fromImage(image))
-        self.__set_clean()
-        self.canvas.setEnabled(True)
-        is_initial_load = not self.zoom_values
-        if self.image_path in self.zoom_values:
-            self.zoomMode = self.zoom_values[self.image_path][0]
-            self.__set_zoom(self.zoom_values[self.image_path][1])
-        elif is_initial_load or not self._config['keep_prev_scale']:
-            self.__adjust_scale(initial=True)
-        for orientation in self.scroll_values:
-            if self.image_path in self.scroll_values[orientation]:
-                self.__set_scroll(orientation, self.scroll_values[orientation][self.image_path])
-        dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.image_data),
-            self.__on_new_brightness_contrast,
-            parent=self)
-        brightness, contrast = self.brightness_contrast_values.get(
-            self.image_path, (None, None))
-        if self._config['keep_prev_brightness'] and self.recentFiles:
-            brightness, _ = self.brightness_contrast_values.get(
-                self.recentFiles[0], (None, None))
-        if self._config['keep_prev_contrast'] and self.recentFiles:
-            _, contrast = self.brightness_contrast_values.get(
-                self.recentFiles[0], (None, None))
-        if brightness is not None:
-            dialog.slider_brightness.setValue(brightness)
-        if contrast is not None:
-            dialog.slider_contrast.setValue(contrast)
-        self.brightness_contrast_values[self.image_path] = (brightness, contrast)
-        if brightness is not None or contrast is not None:
-            dialog.onNewValue(None)
-        self.__paint_canvas()
-        self.__add_recent_file(self.image_path)
-        self.__toggle_actions(True)
-        self.canvas.setFocus()
-        self.__status(self.tr(f'Loaded {image_path}'))
 
     def __paint_canvas(self) -> None:
         assert not self.image.isNull(), 'cannot paint null image'
