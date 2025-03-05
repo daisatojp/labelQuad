@@ -81,17 +81,7 @@ class MainWindow(QMainWindow):
             fit_to_content=self._config['fit_to_content'])
         self.label_dialog.edit_group_id.setDisabled(True)
 
-        self.label_list = LabelListWidget()
-        self.label_list.itemSelectionChanged.connect(self.__label_selection_changed)
-        self.label_list.itemDoubleClicked.connect(self.__edit_label)
-        self.label_list.itemChanged.connect(self.__label_item_changed)
-        self.label_list.itemDropped.connect(self.__label_order_changed)
-        self.shape_dock = QDockWidget(self.tr('Polygon Labels'), self)
-        self.shape_dock.setObjectName('Labels')
-        self.shape_dock.setWidget(self.label_list)
-
         self.unique_label_list = UniqueLabelQListWidget()
-        self.unique_label_list.setToolTip(self.tr('Select label to start annotating for it. ' 'Press "Esc" to deselect.'))
         if self._config['labels']:
             for label in self._config['labels']:
                 item = self.unique_label_list.createItemFromLabel(label)
@@ -101,6 +91,20 @@ class MainWindow(QMainWindow):
         self.label_dock = QDockWidget(self.tr('Label List'), self)
         self.label_dock.setObjectName('Label List')
         self.label_dock.setWidget(self.unique_label_list)
+
+        self.quad_list = LabelListWidget()
+        self.quad_list.itemSelectionChanged.connect(self.__label_selection_changed)
+        self.quad_list.itemDoubleClicked.connect(self.__edit_label)
+        self.quad_list.itemChanged.connect(self.__label_item_changed)
+        self.quad_list.itemDropped.connect(self.__label_order_changed)
+        self.quad_dock = QDockWidget(self.tr('Quads'), self)
+        self.quad_dock.setObjectName('Labels')
+        self.quad_dock.setFeatures(
+            QDockWidget.DockWidgetFeatures() |
+            QDockWidget.DockWidgetClosable |
+            QDockWidget.DockWidgetFloatable |
+            QDockWidget.DockWidgetMovable)
+        self.quad_dock.setWidget(self.quad_list)
 
         self.file_search = QLineEdit()
         self.file_search.setPlaceholderText(self.tr('Search Filename'))
@@ -120,7 +124,7 @@ class MainWindow(QMainWindow):
 
         self.setAcceptDrops(True)
 
-        self.canvas = self.label_list.canvas = Canvas(
+        self.canvas = self.quad_list.canvas = Canvas(
             epsilon=self._config['epsilon'],
             double_click=self._config['canvas']['double_click'],
             num_backups=self._config['canvas']['num_backups'],
@@ -143,7 +147,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(scroll_area)
 
         features = QDockWidget.DockWidgetFeatures()
-        for dock in ['label_dock', 'shape_dock', 'file_dock']:
+        for dock in ['label_dock', 'file_dock']:
             if self._config[dock]['closable']:
                 features = features | QDockWidget.DockWidgetClosable
             if self._config[dock]['floatable']:
@@ -155,7 +159,7 @@ class MainWindow(QMainWindow):
                 getattr(self, dock).setVisible(False)
 
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_dock)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.shape_dock)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.quad_dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
 
         shortcuts = self._config['shortcuts']
@@ -217,8 +221,8 @@ class MainWindow(QMainWindow):
 
         label_menu = QMenu()
         utils.addActions(label_menu, (self.action_edit, self.action_delete))
-        self.label_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.label_list.customContextMenuRequested.connect(self.__pop_label_list_menu)
+        self.quad_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.quad_list.customContextMenuRequested.connect(self.__pop_label_list_menu)
 
         self.menu_file = self.menuBar().addMenu(self.tr('&File'))
         self.menu_edit = self.menuBar().addMenu(self.tr('&Edit'))
@@ -243,7 +247,7 @@ class MainWindow(QMainWindow):
         utils.addActions(
             self.menu_view,
             (self.label_dock.toggleViewAction(),
-             self.shape_dock.toggleViewAction(),
+             self.quad_dock.toggleViewAction(),
              self.file_dock.toggleViewAction(),
              None,
              self.action_fill_drawing,
@@ -409,7 +413,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, delay)
 
     def __reset_state(self) -> None:
-        self.label_list.clear()
+        self.quad_list.clear()
         self.filename = None
         self.imagePath = None
         self.imageData = None
@@ -426,7 +430,7 @@ class MainWindow(QMainWindow):
 
     def undoShapeEdit(self):
         self.canvas.restoreShape()
-        self.label_list.clear()
+        self.quad_list.clear()
         self.__load_shapes(self.canvas.shapes)
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
 
@@ -463,7 +467,7 @@ class MainWindow(QMainWindow):
             menu.addAction(action)
 
     def __pop_label_list_menu(self, point):
-        self.menu_label_list.exec_(self.label_list.mapToGlobal(point))
+        self.menu_label_list.exec_(self.quad_list.mapToGlobal(point))
 
     def validateLabel(self, label):
         if self._config['validate_label'] is None:
@@ -479,7 +483,7 @@ class MainWindow(QMainWindow):
         if not self.canvas.editing():
             return
 
-        items = self.label_list.selectedItems()
+        items = self.quad_list.selectedItems()
         if not items:
             logger.warning('No label is selected, so cannot edit label.')
             return
@@ -557,13 +561,13 @@ class MainWindow(QMainWindow):
         self._noSelectionSlot = True
         for shape in self.canvas.selectedShapes:
             shape.selected = False
-        self.label_list.clearSelection()
+        self.quad_list.clearSelection()
         self.canvas.selectedShapes = selected_shapes
         for shape in self.canvas.selectedShapes:
             shape.selected = True
-            item = self.label_list.findItemByShape(shape)
-            self.label_list.selectItem(item)
-            self.label_list.scrollToItem(item)
+            item = self.quad_list.findItemByShape(shape)
+            self.quad_list.selectItem(item)
+            self.quad_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
         self.action_delete.setEnabled(n_selected)
@@ -573,7 +577,7 @@ class MainWindow(QMainWindow):
     def addLabel(self, shape):
         text = shape.label
         label_list_item = LabelListWidgetItem(text, shape)
-        self.label_list.addItem(label_list_item)
+        self.quad_list.addItem(label_list_item)
         if self.unique_label_list.findItemByLabel(shape.label) is None:
             item = self.unique_label_list.createItemFromLabel(shape.label)
             self.unique_label_list.addItem(item)
@@ -620,14 +624,14 @@ class MainWindow(QMainWindow):
 
     def __remove_quads(self, shapes):
         for shape in shapes:
-            item = self.label_list.findItemByShape(shape)
-            self.label_list.removeItem(item)
+            item = self.quad_list.findItemByShape(shape)
+            self.quad_list.removeItem(item)
 
     def __load_shapes(self, shapes, replace=True) -> None:
         self._noSelectionSlot = True
         for shape in shapes:
             self.addLabel(shape)
-        self.label_list.clearSelection()
+        self.quad_list.clearSelection()
         self._noSelectionSlot = False
         self.canvas.loadShapes(shapes, replace=replace)
 
@@ -678,7 +682,7 @@ class MainWindow(QMainWindow):
             )
             return data
 
-        shapes = [format_shape(item.shape()) for item in self.label_list]
+        shapes = [format_shape(item.shape()) for item in self.quad_list]
         try:
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
@@ -715,7 +719,7 @@ class MainWindow(QMainWindow):
             return
         if self.canvas.editing():
             selected_shapes = []
-            for item in self.label_list.selectedItems():
+            for item in self.quad_list.selectedItems():
                 selected_shapes.append(item.shape())
             if selected_shapes:
                 self.canvas.selectShapes(selected_shapes)
@@ -728,7 +732,7 @@ class MainWindow(QMainWindow):
 
     def __label_order_changed(self):
         self.__set_dirty()
-        self.canvas.loadShapes([item.shape() for item in self.label_list])
+        self.canvas.loadShapes([item.shape() for item in self.quad_list])
 
     def __new_shape(self) -> None:
         items = self.unique_label_list.selectedItems()
@@ -748,7 +752,7 @@ class MainWindow(QMainWindow):
                     text, self._config['validate_label']))
             text = ''
         if text:
-            self.label_list.clearSelection()
+            self.quad_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
             shape.description = description
             self.addLabel(shape)
@@ -833,7 +837,7 @@ class MainWindow(QMainWindow):
 
     def __toggle_polygons(self, value):
         flag = value
-        for item in self.label_list:
+        for item in self.quad_list:
             if value is None:
                 flag = item.checkState() == Qt.Unchecked
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
@@ -1031,7 +1035,7 @@ class MainWindow(QMainWindow):
     def __delete_selected_shape(self) -> None:
         self.__remove_quads(self.canvas.deleteSelected())
         self.__set_dirty()
-        if 0 <= len(self.label_list):
+        if 0 <= len(self.quad_list):
             for action in self.actions_on_shapes_present:
                 action.setEnabled(False)
 
@@ -1039,7 +1043,7 @@ class MainWindow(QMainWindow):
         self.canvas.endMove(copy=True)
         for shape in self.canvas.selectedShapes:
             self.addLabel(shape)
-        self.label_list.clearSelection()
+        self.quad_list.clearSelection()
         self.__set_dirty()
 
     def __move_shape(self):
