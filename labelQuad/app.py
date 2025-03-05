@@ -33,12 +33,13 @@ from labelme.widgets import ZoomWidget
 __appname__ = 'labelQuad'
 __version__ = '1.0.0'
 
-
 LABEL_COLORMAP = imgviz.label_colormap()
+ZOOM_MODE_FIT_WINDOW = 0
+ZOOM_MODE_FIT_WIDTH = 1
+ZOOM_MODE_MANUAL_ZOOM = 2
 
 
 class MainWindow(QMainWindow):
-    FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = 0, 1, 2
 
     def __init__(
             self,
@@ -69,8 +70,10 @@ class MainWindow(QMainWindow):
         self.image_dir: Optional[str] = None
         self.annot_dir: Optional[str] = None
         self.dirty: bool = False
+        self.image: QImage = QImage()
         self.image_path: Optional[str] = None
         self.image_data: Optional[bytes] = None
+        self.zoom_mode = ZOOM_MODE_FIT_WINDOW
         self._noSelectionSlot = False
         self._copied_shapes = None
 
@@ -208,12 +211,11 @@ class MainWindow(QMainWindow):
         self.action_fit_width = self.__new_action(self.tr('Fit &Width'), slot=self.__set_fit_width, shortcut=shortcuts['fit_width'], icon='fit-width', tip=self.tr('Zoom follows window width'), checkable=True, enabled=False)
         self.action_brightness_contrast = self.__new_action(self.tr('&Brightness Contrast'), slot=self.__brightness_contrast, shortcut=None, icon='color', tip=self.tr('Adjust brightness and contrast'), enabled=False)
 
-        self.zoomMode = self.FIT_WINDOW
         self.action_fit_window.setChecked(Qt.Checked)
         self.scalers = {
-            self.FIT_WINDOW: self.__scale_fit_window,
-            self.FIT_WIDTH: self.__scale_fit_width,
-            self.MANUAL_ZOOM: lambda: 1}
+            ZOOM_MODE_FIT_WINDOW: self.__scale_fit_window,
+            ZOOM_MODE_FIT_WIDTH: self.__scale_fit_width,
+            ZOOM_MODE_MANUAL_ZOOM: lambda: 1}
 
         self.action_edit = self.__new_action(self.tr('&Edit Label'), slot=self.__edit_label, shortcut=shortcuts['edit_label'], icon='edit', tip=self.tr('Modify the label of the selected polygon'), enabled=False)
         self.action_fill_drawing = self.__new_action(self.tr('Fill Drawing Polygon'), slot=self.canvas.setFillDrawing, shortcut=None, icon='color', tip=self.tr('Fill polygon while drawing'), checkable=True, enabled=True)
@@ -329,7 +331,6 @@ class MainWindow(QMainWindow):
         self.output_file = output_file
         self.output_dir = output_dir
 
-        self.image = QImage()
         self.recentFiles = []
         self.maxRecent = 7
         self.zoom_level = 100
@@ -369,11 +370,12 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         if (self.canvas) and \
            (not self.image.isNull()) and \
-           (self.zoomMode != self.MANUAL_ZOOM):
+           (self.zoom_mode != ZOOM_MODE_MANUAL_ZOOM):
             self.__adjust_scale()
         super(MainWindow, self).resizeEvent(event)
 
-    def __load_file(self) -> None:
+    def __load(self) -> None:
+        image_path_prev = self.image_path
         image_path = self.__current_image_path()
         annot_path = self.__current_annot_path()
         if image_path is None:
@@ -389,26 +391,19 @@ class MainWindow(QMainWindow):
         self.labelFile = None
         image = QImage.fromData(image_data)
         if image.isNull():
-            formats = [
-                '*.{}'.format(fmt.data().decode())
-                for fmt in QImageReader.supportedImageFormats()
-            ]
             self.__error_message(
                 self.tr('Error opening file'),
-                self.tr(
-                    '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
-                    'Supported image formats: {1}</p>'
-                ).format(image_path, ','.join(formats)))
+                self.tr(f'<p>Make sure <i>{image_path}</i> is a valid image file.<br/>'))
             self.__status(self.tr('Error reading %s') % image_path)
         self.image = image
         self.image_path = image_path
         self.image_data = image_data
-        self.canvas.loadPixmap(QPixmap.fromImage(image))
+        self.canvas.loadPixmap(QPixmap.fromImage(self.image))
         self.__set_clean()
         self.canvas.setEnabled(True)
         is_initial_load = not self.zoom_values
         if self.image_path in self.zoom_values:
-            self.zoomMode = self.zoom_values[self.image_path][0]
+            self.zoom_mode = self.zoom_values[self.image_path][0]
             self.__set_zoom(self.zoom_values[self.image_path][1])
         elif is_initial_load or not self._config['keep_prev_scale']:
             self.__adjust_scale(initial=True)
@@ -640,7 +635,7 @@ class MainWindow(QMainWindow):
     def __file_selection_changed(self) -> None:
         if not self.__may_continue():
             return
-        self.__load_file()
+        self.__load()
 
     def __shape_selection_changed(self, selected_shapes):
         self._noSelectionSlot = True
@@ -795,9 +790,9 @@ class MainWindow(QMainWindow):
     def __set_zoom(self, value) -> None:
         self.action_fit_width.setChecked(False)
         self.action_fit_window.setChecked(False)
-        self.zoomMode = self.MANUAL_ZOOM
+        self.zoom_mode = ZOOM_MODE_MANUAL_ZOOM
         self.zoom_widget.setValue(value)
-        self.zoom_values[self.image_path] = (self.zoomMode, value)
+        self.zoom_values[self.image_path] = (self.zoom_mode, value)
 
     def __add_zoom(self, increment: float = 1.1) -> None:
         zoom_value = self.zoom_widget.value() * increment
@@ -823,12 +818,12 @@ class MainWindow(QMainWindow):
 
     def __set_fit_window(self) -> None:
         self.action_fit_width.setChecked(False)
-        self.zoomMode = self.FIT_WINDOW
+        self.zoom_mode = ZOOM_MODE_FIT_WINDOW
         self.__adjust_scale()
 
     def __set_fit_width(self) -> None:
         self.action_fit_window.setChecked(False)
-        self.zoomMode = self.FIT_WIDTH
+        self.zoom_mode = ZOOM_MODE_FIT_WIDTH
         self.__adjust_scale()
 
     def __enable_keep_prev_scale(self, enabled) -> None:
@@ -867,10 +862,10 @@ class MainWindow(QMainWindow):
         self.canvas.update()
 
     def __adjust_scale(self, initial: bool = False) -> None:
-        value = self.scalers[self.FIT_WINDOW if initial else self.zoomMode]()
+        value = self.scalers[ZOOM_MODE_FIT_WINDOW if initial else self.zoom_mode]()
         value = int(100 * value)
         self.zoom_widget.setValue(value)
-        self.zoom_values[self.image_path] = (self.zoomMode, value)
+        self.zoom_values[self.image_path] = (self.zoom_mode, value)
 
     def __scale_fit_window(self):
         e = 2.0
@@ -888,7 +883,7 @@ class MainWindow(QMainWindow):
 
     def __load_recent(self) -> None:
         if self.__may_continue():
-            self.__load_file()
+            self.__load()
 
     def __open_next(self) -> None:
         if not self.__may_continue():
@@ -903,7 +898,7 @@ class MainWindow(QMainWindow):
             if row + 1 < size:
                 row = row + 1
         self.file_list.setCurrentRow(row)
-        self.__load_file()
+        self.__load()
 
     def __open_prev(self) -> None:
         if not self.__may_continue():
@@ -912,7 +907,7 @@ class MainWindow(QMainWindow):
         if row < 1:
             return
         self.file_list.setCurrentRow(row - 1)
-        self.__load_file()
+        self.__load()
 
     def __close_file(self) -> None:
         if not self.__may_continue():
@@ -955,14 +950,6 @@ class MainWindow(QMainWindow):
     def __move_shape(self) -> None:
         self.canvas.endMove(copy=False)
         self.__set_dirty()
-
-    @property
-    def imageList(self):
-        lst = []
-        for i in range(self.file_list.count()):
-            item = self.file_list.item(i)
-            lst.append(item.text())
-        return lst
 
     def __open_image_dir_dialog(self) -> None:
         if not self.__may_continue():
