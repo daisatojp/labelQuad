@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
 
         self.label_list = LabelListWidget()
         self.label_list.itemSelectionChanged.connect(self.labelSelectionChanged)
-        self.label_list.itemDoubleClicked.connect(self._edit_label)
+        self.label_list.itemDoubleClicked.connect(self.__edit_label)
         self.label_list.itemChanged.connect(self.labelItemChanged)
         self.label_list.itemDropped.connect(self.labelOrderChanged)
         self.shape_dock = QDockWidget(self.tr('Polygon Labels'), self)
@@ -119,7 +119,6 @@ class MainWindow(QMainWindow):
         file_list_widget.setLayout(file_list_layout)
         self.file_dock.setWidget(file_list_widget)
 
-        self.zoomWidget = ZoomWidget()
         self.setAcceptDrops(True)
 
         self.canvas = self.label_list.canvas = Canvas(
@@ -166,8 +165,8 @@ class MainWindow(QMainWindow):
         self.action_quit = self.__new_action(self.tr('&Quit'), slot=self.close, shortcut=shortcuts['quit'], icon='quit', tip=self.tr('Quit application'))
         self.action_open_image_dir = self.__new_action(self.tr('Open Image Dir'), slot=self.__open_image_dir_dialog, shortcut=shortcuts['open_dir'], icon='open', tip=self.tr('Open Image Dir'))
         self.action_open = self.__new_action(self.tr('&Open\n'), slot=self.openFile, shortcut=shortcuts['open'], icon='open', tip=self.tr('Open image or label file'))
-        self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.openNextImg, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
-        self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.openPrevImg, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
+        self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
+        self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.saveFile, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
         self.action_save_as = self.__new_action(self.tr('&Save As'), slot=self.saveFileAs, shortcut=shortcuts['save_as'], icon='save-as', tip=self.tr('Save labels to a different file'), enabled=False)
         self.action_delete_file = self.__new_action(self.tr('&Delete File'), slot=self.deleteFile, shortcut=shortcuts['delete_file'], icon='delete', tip=self.tr('Delete current label file'), enabled=False)
@@ -188,15 +187,16 @@ class MainWindow(QMainWindow):
         self.action_show_all = self.__new_action(self.tr('&Show\nPolygons'), slot=functools.partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all polygons'), enabled=False)
         self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=functools.partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
 
+        self.zoom_widget = ZoomWidget()
         zoom = QWidgetAction(self)
-        zoomBoxLayout = QVBoxLayout()
+        zoom_box_layout = QVBoxLayout()
         zoomLabel = QLabel(self.tr('Zoom'))
         zoomLabel.setAlignment(Qt.AlignCenter)
-        zoomBoxLayout.addWidget(zoomLabel)
-        zoomBoxLayout.addWidget(self.zoomWidget)
+        zoom_box_layout.addWidget(zoomLabel)
+        zoom_box_layout.addWidget(self.zoom_widget)
         zoom.setDefaultWidget(QWidget())
-        zoom.defaultWidget().setLayout(zoomBoxLayout)
-        self.zoomWidget.setWhatsThis(
+        zoom.defaultWidget().setLayout(zoom_box_layout)
+        self.zoom_widget.setWhatsThis(
             str(
                 self.tr(
                     'Zoom in or out of the image. Also accessible with '
@@ -209,40 +209,39 @@ class MainWindow(QMainWindow):
                 utils.fmtShortcut(self.tr('Ctrl+Wheel')),
             )
         )
-        self.zoomWidget.setEnabled(False)
+        self.zoom_widget.setEnabled(False)
 
-        self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=functools.partial(self.addZoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
-        self.action_zoom_out = self.__new_action(self.tr('&Zoom Out'), slot=functools.partial(self.addZoom, 0.9), shortcut=shortcuts['zoom_out'], icon='zoom-out', tip=self.tr('Decrease zoom level'), enabled=False)
-        self.action_zoom_org = self.__new_action(self.tr('&Original size'), slot=functools.partial(self.setZoom, 100), shortcut=shortcuts['zoom_to_original'], icon='zoom', tip=self.tr('Zoom to original size'), enabled=False)
-        self.action_keep_prev_scale = self.__new_action(self.tr('&Keep Previous Scale'), slot=self.enableKeepPrevScale, tip=self.tr('Keep previous zoom scale'), checkable=True, checked=self._config['keep_prev_scale'], enabled=True)
-        self.action_fit_window = self.__new_action(self.tr('&Fit Window'), slot=self.setFitWindow, shortcut=shortcuts['fit_window'], icon='fit-window', tip=self.tr('Zoom follows window size'), checkable=True, enabled=False)
-        self.action_fit_width = self.__new_action(self.tr('Fit &Width'), slot=self.setFitWidth, shortcut=shortcuts['fit_width'], icon='fit-width', tip=self.tr('Zoom follows window width'), checkable=True, enabled=False)
+        self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=functools.partial(self.__add_zoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
+        self.action_zoom_out = self.__new_action(self.tr('&Zoom Out'), slot=functools.partial(self.__add_zoom, 0.9), shortcut=shortcuts['zoom_out'], icon='zoom-out', tip=self.tr('Decrease zoom level'), enabled=False)
+        self.action_zoom_org = self.__new_action(self.tr('&Original size'), slot=functools.partial(self.__set_zoom, 100), shortcut=shortcuts['zoom_to_original'], icon='zoom', tip=self.tr('Zoom to original size'), enabled=False)
+        self.action_keep_prev_scale = self.__new_action(self.tr('&Keep Previous Scale'), slot=self.__enable_keep_prev_scale, tip=self.tr('Keep previous zoom scale'), checkable=True, checked=self._config['keep_prev_scale'], enabled=True)
+        self.action_fit_window = self.__new_action(self.tr('&Fit Window'), slot=self.__set_fit_window, shortcut=shortcuts['fit_window'], icon='fit-window', tip=self.tr('Zoom follows window size'), checkable=True, enabled=False)
+        self.action_fit_width = self.__new_action(self.tr('Fit &Width'), slot=self.__set_fit_width, shortcut=shortcuts['fit_width'], icon='fit-width', tip=self.tr('Zoom follows window width'), checkable=True, enabled=False)
         self.action_brightness_contrast = self.__new_action(self.tr('&Brightness Contrast'), slot=self.__brightness_contrast, shortcut=None, icon='color', tip=self.tr('Adjust brightness and contrast'), enabled=False)
 
         self.zoomMode = self.FIT_WINDOW
         self.action_fit_window.setChecked(Qt.Checked)
         self.scalers = {
-            self.FIT_WINDOW: self.scaleFitWindow,
-            self.FIT_WIDTH: self.scaleFitWidth,
+            self.FIT_WINDOW: self.__scale_fit_window,
+            self.FIT_WIDTH: self.__scale_fit_width,
             self.MANUAL_ZOOM: lambda: 1}
 
-        self.action_edit = self.__new_action(self.tr('&Edit Label'), slot=self._edit_label, shortcut=shortcuts['edit_label'], icon='edit', tip=self.tr('Modify the label of the selected polygon'), enabled=False)
+        self.action_edit = self.__new_action(self.tr('&Edit Label'), slot=self.__edit_label, shortcut=shortcuts['edit_label'], icon='edit', tip=self.tr('Modify the label of the selected polygon'), enabled=False)
         self.action_fill_drawing = self.__new_action(self.tr('Fill Drawing Polygon'), slot=self.canvas.setFillDrawing, shortcut=None, icon='color', tip=self.tr('Fill polygon while drawing'), checkable=True, enabled=True)
         if self._config['canvas']['fill_drawing']:
             self.action_fill_drawing.trigger()
 
-        # Label list context menu.
-        labelMenu = QMenu()
-        utils.addActions(labelMenu, (self.action_edit, self.action_delete))
+        label_menu = QMenu()
+        utils.addActions(label_menu, (self.action_edit, self.action_delete))
         self.label_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.label_list.customContextMenuRequested.connect(self.popLabelListMenu)
 
-        self.menu_file = self.menu(self.tr('&File'))
-        self.menu_edit = self.menu(self.tr('&Edit'))
-        self.menu_view = self.menu(self.tr('&View'))
-        self.menu_help = self.menu(self.tr('&Help'))
+        self.menu_file = self.menuBar().addMenu(self.tr('&File'))
+        self.menu_edit = self.menuBar().addMenu(self.tr('&Edit'))
+        self.menu_view = self.menuBar().addMenu(self.tr('&View'))
+        self.menu_help = self.menuBar().addMenu(self.tr('&Help'))
         self.menu_recent_files = QMenu(self.tr('Open &Recent'))
-        self.menu_label_list = labelMenu
+        self.menu_label_list = label_menu
 
         utils.addActions(
             self.menu_file,
@@ -370,15 +369,9 @@ class MainWindow(QMainWindow):
         if self.filename is not None:
             self.queueEvent(functools.partial(self.__load_file, self.filename))
 
-        self.zoomWidget.valueChanged.connect(self.paintCanvas)
+        self.zoom_widget.valueChanged.connect(self.paintCanvas)
 
         self.populateModeActions()
-
-    def menu(self, title, actions=None):
-        menu = self.menuBar().addMenu(title)
-        if actions:
-            utils.addActions(menu, actions)
-        return menu
 
     def toolbar(self, title, actions=None):
         toolbar = ToolBar(title)
@@ -453,7 +446,7 @@ class MainWindow(QMainWindow):
             self.action_delete_file.setEnabled(False)
 
     def toggleActions(self, value: bool = True):
-        self.zoomWidget.setEnabled(value)
+        self.zoom_widget.setEnabled(value)
         self.action_zoom_in.setEnabled(value)
         self.action_zoom_out.setEnabled(value)
         self.action_zoom_org.setEnabled(value)
@@ -558,7 +551,7 @@ class MainWindow(QMainWindow):
                     return True
         return False
 
-    def _edit_label(self, value=None):
+    def __edit_label(self, value=None):
         if not self.canvas.editing():
             return
 
@@ -904,27 +897,27 @@ class MainWindow(QMainWindow):
         self.scroll_bars[orientation].setValue(int(value))
         self.scroll_values[orientation][self.filename] = value
 
-    def setZoom(self, value):
+    def __set_zoom(self, value):
         self.action_fit_width.setChecked(False)
         self.action_fit_window.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
-        self.zoomWidget.setValue(value)
+        self.zoom_widget.setValue(value)
         self.zoom_values[self.filename] = (self.zoomMode, value)
 
-    def addZoom(self, increment=1.1):
-        zoom_value = self.zoomWidget.value() * increment
+    def __add_zoom(self, increment: float = 1.1):
+        zoom_value = self.zoom_widget.value() * increment
         if increment > 1:
             zoom_value = math.ceil(zoom_value)
         else:
             zoom_value = math.floor(zoom_value)
-        self.setZoom(zoom_value)
+        self.__set_zoom(zoom_value)
 
     def zoomRequest(self, delta, pos):
         canvas_width_old = self.canvas.width()
         units = 1.1
         if delta < 0:
             units = 0.9
-        self.addZoom(units)
+        self.__add_zoom(units)
         canvas_width_new = self.canvas.width()
         if canvas_width_old != canvas_width_new:
             canvas_scale_factor = canvas_width_new / canvas_width_old
@@ -933,29 +926,27 @@ class MainWindow(QMainWindow):
             self.setScroll(Qt.Horizontal, self.scroll_bars[Qt.Horizontal].value() + x_shift)
             self.setScroll(Qt.Vertical, self.scroll_bars[Qt.Vertical].value() + y_shift)
 
-    def setFitWindow(self, value=True):
-        if value:
-            self.action_fit_width.setChecked(False)
-        self.zoomMode = self.FIT_WINDOW if value else self.MANUAL_ZOOM
+    def __set_fit_window(self) -> None:
+        self.action_fit_width.setChecked(False)
+        self.zoomMode = self.FIT_WINDOW
         self.adjustScale()
 
-    def setFitWidth(self, value=True):
-        if value:
-            self.action_fit_window.setChecked(False)
-        self.zoomMode = self.FIT_WIDTH if value else self.MANUAL_ZOOM
+    def __set_fit_width(self) -> None:
+        self.action_fit_window.setChecked(False)
+        self.zoomMode = self.FIT_WIDTH
         self.adjustScale()
 
-    def enableKeepPrevScale(self, enabled):
+    def __enable_keep_prev_scale(self, enabled):
         self._config['keep_prev_scale'] = enabled
         self.action_keep_prev_scale.setChecked(enabled)
 
-    def onNewBrightnessContrast(self, qimage):
+    def __on_new_brightness_contrast(self, qimage):
         self.canvas.loadPixmap(QPixmap.fromImage(qimage), clear_shapes=False)
 
     def __brightness_contrast(self, value):
         dialog = BrightnessContrastDialog(
             utils.img_data_to_pil(self.imageData),
-            self.onNewBrightnessContrast,
+            self.__on_new_brightness_contrast,
             parent=self)
         brightness, contrast = self.brightness_contrast_values.get(self.filename, (None, None))
         if brightness is not None:
@@ -1054,7 +1045,7 @@ class MainWindow(QMainWindow):
         is_initial_load = not self.zoom_values
         if self.filename in self.zoom_values:
             self.zoomMode = self.zoom_values[self.filename][0]
-            self.setZoom(self.zoom_values[self.filename][1])
+            self.__set_zoom(self.zoom_values[self.filename][1])
         elif is_initial_load or not self._config['keep_prev_scale']:
             self.adjustScale(initial=True)
         for orientation in self.scroll_values:
@@ -1062,7 +1053,7 @@ class MainWindow(QMainWindow):
                 self.setScroll(orientation, self.scroll_values[orientation][self.filename])
         dialog = BrightnessContrastDialog(
             utils.img_data_to_pil(self.imageData),
-            self.onNewBrightnessContrast,
+            self.__on_new_brightness_contrast,
             parent=self)
         brightness, contrast = self.brightness_contrast_values.get(
             self.filename, (None, None))
@@ -1097,30 +1088,27 @@ class MainWindow(QMainWindow):
 
     def paintCanvas(self):
         assert not self.image.isNull(), 'cannot paint null image'
-        self.canvas.scale = 0.01 * self.zoomWidget.value()
+        self.canvas.scale = 0.01 * self.zoom_widget.value()
         self.canvas.adjustSize()
         self.canvas.update()
 
     def adjustScale(self, initial=False):
         value = self.scalers[self.FIT_WINDOW if initial else self.zoomMode]()
         value = int(100 * value)
-        self.zoomWidget.setValue(value)
+        self.zoom_widget.setValue(value)
         self.zoom_values[self.filename] = (self.zoomMode, value)
 
-    def scaleFitWindow(self):
-        """Figure out the size of the pixmap to fit the main widget."""
-        e = 2.0  # So that no scrollbars are generated.
+    def __scale_fit_window(self):
+        e = 2.0
         w1 = self.centralWidget().width() - e
         h1 = self.centralWidget().height() - e
         a1 = w1 / h1
-        # Calculate a new scale value based on the pixmap's aspect ratio.
         w2 = self.canvas.pixmap.width() - 0.0
         h2 = self.canvas.pixmap.height() - 0.0
         a2 = w2 / h2
         return w1 / w2 if a2 >= a1 else h1 / h2
 
-    def scaleFitWidth(self):
-        # The epsilon does not seem to work too well here.
+    def __scale_fit_width(self):
         w = self.centralWidget().width() - 2.0
         return w / self.canvas.pixmap.width()
 
@@ -1132,8 +1120,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue('window/position', self.pos())
         self.settings.setValue('window/state', self.saveState())
         self.settings.setValue('recentFiles', self.recentFiles)
-        # ask the use for where to save the labels
-        # self.settings.setValue('window/geometry', self.saveGeometry())
 
     def dragEnterEvent(self, event):
         extensions = [
@@ -1154,45 +1140,35 @@ class MainWindow(QMainWindow):
         items = [i.toLocalFile() for i in event.mimeData().urls()]
         self.importDroppedImageFiles(items)
 
-    # User Dialogs #
-
     def loadRecent(self, filename):
         if self.mayContinue():
             self.__load_file(filename)
 
-    def openPrevImg(self, _value=False):
+    def __open_prev(self, _value=False):
         keep_prev = self._config['keep_prev']
         if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self._config['keep_prev'] = True
-
         if not self.mayContinue():
             return
-
         if len(self.imageList) <= 0:
             return
-
         if self.filename is None:
             return
-
         currIndex = self.imageList.index(self.filename)
         if currIndex - 1 >= 0:
             filename = self.imageList[currIndex - 1]
             if filename:
                 self.__load_file(filename)
-
         self._config['keep_prev'] = keep_prev
 
-    def openNextImg(self, _value=False, load=True):
+    def __open_next(self, _value=False, load=True):
         keep_prev = self._config['keep_prev']
         if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self._config['keep_prev'] = True
-
         if not self.mayContinue():
             return
-
         if len(self.imageList) <= 0:
             return
-
         filename = None
         if self.filename is None:
             filename = self.imageList[0]
@@ -1203,10 +1179,8 @@ class MainWindow(QMainWindow):
             else:
                 filename = self.imageList[-1]
         self.filename = filename
-
         if self.filename and load:
             self.__load_file(self.filename)
-
         self._config['keep_prev'] = keep_prev
 
     def openFile(self, _value=False):
@@ -1215,17 +1189,13 @@ class MainWindow(QMainWindow):
         path = osp.dirname(str(self.filename)) if self.filename else '.'
         formats = [
             '*.{}'.format(fmt.data().decode())
-            for fmt in QImageReader.supportedImageFormats()
-        ]
+            for fmt in QImageReader.supportedImageFormats()]
         filters = self.tr('Image & Label files (%s)') % ' '.join(
-            formats + ['*%s' % LabelFile.suffix]
-        )
+            formats + ['*%s' % LabelFile.suffix])
         fileDialog = FileDialogPreview(self)
         fileDialog.setFileMode(FileDialogPreview.ExistingFile)
         fileDialog.setNameFilter(filters)
-        fileDialog.setWindowTitle(
-            self.tr('%s - Choose Image or Label file') % __appname__,
-        )
+        fileDialog.setWindowTitle(self.tr('%s - Choose Image or Label file') % __appname__)
         fileDialog.setWindowFilePath(path)
         fileDialog.setViewMode(FileDialogPreview.Detail)
         if fileDialog.exec_():
@@ -1454,7 +1424,7 @@ class MainWindow(QMainWindow):
             self.action_open_next.setEnabled(True)
             self.action_open_prev.setEnabled(True)
 
-        self.openNextImg()
+        self.__open_next()
 
     def __open_image_dir_dialog(self) -> None:
         if not self.mayContinue():
@@ -1497,7 +1467,7 @@ class MainWindow(QMainWindow):
             else:
                 item.setCheckState(Qt.Unchecked)
             self.file_list_widget.addItem(item)
-        self.openNextImg(load=load)
+        self.__open_next(load=load)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
         extensions = [
