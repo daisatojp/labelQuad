@@ -69,6 +69,8 @@ class MainWindow(QMainWindow):
         self.image_dir: Optional[str] = None
         self.annot_dir: Optional[str] = None
         self.dirty: bool = False
+        self.image_path: Optional[str] = None
+        self.image_data: Optional[bytes] = None
         self._noSelectionSlot = False
         self._copied_shapes = None
 
@@ -168,7 +170,7 @@ class MainWindow(QMainWindow):
         self.action_open_annot_dir = self.__new_action(self.tr('Open Annot Dir'), slot=self.__open_annot_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
         self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
-        self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save_file, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
+        self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
         self.action_close = self.__new_action(self.tr('&Close'), slot=self.__close_file, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
@@ -328,7 +330,6 @@ class MainWindow(QMainWindow):
         self.output_dir = output_dir
 
         self.image = QImage()
-        self.imagePath = None
         self.recentFiles = []
         self.maxRecent = 7
         self.zoom_level = 100
@@ -359,7 +360,7 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         if not self.__may_continue():
             event.ignore()
-        self.settings.setValue('filename', self.filename if self.filename else '')
+        self.settings.setValue('filename', self.image_path if self.image_path else '')
         self.settings.setValue('window/size', self.size())
         self.settings.setValue('window/position', self.pos())
         self.settings.setValue('window/state', self.saveState())
@@ -375,7 +376,7 @@ class MainWindow(QMainWindow):
     def __set_dirty(self) -> None:
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
         if self.action_save_auto.isChecked():
-            self.__save_label(self.__current_annot_path())
+            self.__save()
             return
         self.dirty = True
         self.action_save.setEnabled(True)
@@ -412,9 +413,8 @@ class MainWindow(QMainWindow):
 
     def __reset_state(self) -> None:
         self.quad_list.clear()
-        self.filename = None
-        self.imagePath = None
-        self.imageData = None
+        self.image_path = None
+        self.image_data = None
         self.labelFile = None
         self.canvas.resetState()
 
@@ -615,7 +615,6 @@ class MainWindow(QMainWindow):
             other_data = shape['other_data']
 
             if not points:
-                # skip point-empty shape
                 continue
 
             shape = Shape(label=label, shape_type=shape_type)
@@ -628,9 +627,12 @@ class MainWindow(QMainWindow):
             s.append(shape)
         self.__load_shapes(s)
 
-    def __save_label(self, filename: str) -> None:
-        lf = LabelFile()
-
+    def __save(self) -> None:
+        if self.image_path is None:
+            return
+        image_path = self.image_path
+        annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
+        annot_path = osp.join(self.annot_dir, annot_path)
         def format_shape(s: Shape) -> dict:
             pts = s.points
             return dict(
@@ -639,27 +641,23 @@ class MainWindow(QMainWindow):
                 p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
                 p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
                 p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
-
         try:
-            imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
-            if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
-                os.makedirs(osp.dirname(filename))
+            image_path = osp.relpath(annot_path, osp.dirname(image_path))
+            if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
+                os.makedirs(osp.dirname(annot_path))
+            lf = LabelFile()
             lf.save(
-                filename=filename,
+                filename=annot_path,
                 shapes=[format_shape(item.shape()) for item in self.quad_list],
-                imagePath=imagePath,
+                imagePath=image_path,
                 imageHeight=self.image.height(),
                 imageWidth=self.image.width())
             self.labelFile = lf
-            items = self.file_list.findItems(self.imagePath, Qt.MatchExactly)
-            if len(items) > 0:
-                if len(items) != 1:
-                    raise RuntimeError('There are duplicate files.')
+            items = self.file_list.findItems(image_path, Qt.MatchExactly)
+            if len(items) == 1:
                 items[0].setCheckState(Qt.Checked)
-            return True
         except LabelFileError as e:
             self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
-            return False
 
     def __paste_selected_shape(self) -> None:
         self.__load_shapes(self._copied_shapes, replace=False)
@@ -725,14 +723,14 @@ class MainWindow(QMainWindow):
 
     def __set_scroll(self, orientation, value) -> None:
         self.scroll_bars[orientation].setValue(int(value))
-        self.scroll_values[orientation][self.filename] = value
+        self.scroll_values[orientation][self.image_path] = value
 
     def __set_zoom(self, value) -> None:
         self.action_fit_width.setChecked(False)
         self.action_fit_window.setChecked(False)
         self.zoomMode = self.MANUAL_ZOOM
         self.zoom_widget.setValue(value)
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        self.zoom_values[self.image_path] = (self.zoomMode, value)
 
     def __add_zoom(self, increment: float = 1.1) -> None:
         zoom_value = self.zoom_widget.value() * increment
@@ -775,10 +773,10 @@ class MainWindow(QMainWindow):
 
     def __brightness_contrast(self, value) -> None:
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.imageData),
+            utils.img_data_to_pil(self.image_data),
             self.__on_new_brightness_contrast,
             parent=self)
-        brightness, contrast = self.brightness_contrast_values.get(self.filename, (None, None))
+        brightness, contrast = self.brightness_contrast_values.get(self.image_path, (None, None))
         if brightness is not None:
             dialog.slider_brightness.setValue(brightness)
         if contrast is not None:
@@ -786,7 +784,7 @@ class MainWindow(QMainWindow):
         dialog.exec_()
         brightness = dialog.slider_brightness.value()
         contrast = dialog.slider_contrast.value()
-        self.brightness_contrast_values[self.filename] = (brightness, contrast)
+        self.brightness_contrast_values[self.image_path] = (brightness, contrast)
 
     def __toggle_polygons(self, value) -> None:
         flag = value
@@ -807,11 +805,9 @@ class MainWindow(QMainWindow):
                 self.tr(f'Error opening file'),
                 self.tr(f'No such file: <b>{image_path}</b>'))
         self.__status(self.tr(f'Loading {image_path}...'))
-        self.imageData = LabelFile.load_image_file(image_path)
-        if self.imageData:
-            self.imagePath = image_path
+        image_data = LabelFile.load_image_file(image_path)
         self.labelFile = None
-        image = QImage.fromData(self.imageData)
+        image = QImage.fromData(image_data)
         if image.isNull():
             formats = [
                 '*.{}'.format(fmt.data().decode())
@@ -824,27 +820,27 @@ class MainWindow(QMainWindow):
                     'Supported image formats: {1}</p>'
                 ).format(image_path, ','.join(formats)))
             self.__status(self.tr('Error reading %s') % image_path)
-            return False
         self.image = image
-        self.filename = image_path
+        self.image_path = image_path
+        self.image_data = image_data
         self.canvas.loadPixmap(QPixmap.fromImage(image))
         self.__set_clean()
         self.canvas.setEnabled(True)
         is_initial_load = not self.zoom_values
-        if self.filename in self.zoom_values:
-            self.zoomMode = self.zoom_values[self.filename][0]
-            self.__set_zoom(self.zoom_values[self.filename][1])
+        if self.image_path in self.zoom_values:
+            self.zoomMode = self.zoom_values[self.image_path][0]
+            self.__set_zoom(self.zoom_values[self.image_path][1])
         elif is_initial_load or not self._config['keep_prev_scale']:
             self.__adjust_scale(initial=True)
         for orientation in self.scroll_values:
-            if self.filename in self.scroll_values[orientation]:
-                self.__set_scroll(orientation, self.scroll_values[orientation][self.filename])
+            if self.image_path in self.scroll_values[orientation]:
+                self.__set_scroll(orientation, self.scroll_values[orientation][self.image_path])
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.imageData),
+            utils.img_data_to_pil(self.image_data),
             self.__on_new_brightness_contrast,
             parent=self)
         brightness, contrast = self.brightness_contrast_values.get(
-            self.filename, (None, None))
+            self.image_path, (None, None))
         if self._config['keep_prev_brightness'] and self.recentFiles:
             brightness, _ = self.brightness_contrast_values.get(
                 self.recentFiles[0], (None, None))
@@ -855,11 +851,11 @@ class MainWindow(QMainWindow):
             dialog.slider_brightness.setValue(brightness)
         if contrast is not None:
             dialog.slider_contrast.setValue(contrast)
-        self.brightness_contrast_values[self.filename] = (brightness, contrast)
+        self.brightness_contrast_values[self.image_path] = (brightness, contrast)
         if brightness is not None or contrast is not None:
             dialog.onNewValue(None)
         self.__paint_canvas()
-        self.__add_recent_file(self.filename)
+        self.__add_recent_file(self.image_path)
         self.__toggle_actions(True)
         self.canvas.setFocus()
         self.__status(self.tr(f'Loaded {image_path}'))
@@ -874,7 +870,7 @@ class MainWindow(QMainWindow):
         value = self.scalers[self.FIT_WINDOW if initial else self.zoomMode]()
         value = int(100 * value)
         self.zoom_widget.setValue(value)
-        self.zoom_values[self.filename] = (self.zoomMode, value)
+        self.zoom_values[self.image_path] = (self.zoomMode, value)
 
     def __scale_fit_window(self):
         e = 2.0
@@ -890,7 +886,7 @@ class MainWindow(QMainWindow):
         w = self.centralWidget().width() - 2.0
         return w / self.canvas.pixmap.width()
 
-    def __load_recent(self, filename: str) -> None:
+    def __load_recent(self) -> None:
         if self.__may_continue():
             self.__load_file()
 
@@ -918,14 +914,6 @@ class MainWindow(QMainWindow):
         self.file_list.setCurrentRow(row - 1)
         self.__load_file()
 
-    def __save_file(self):
-        if (self.annot_dir is None) or \
-           (self.file_list.currentRow() < 0):
-           return
-        filename = self.file_list.currentItem().text()
-        filename = osp.splitext(filename)[0] + '.json'
-        self.__save_label(osp.join(self.annot_dir, filename))
-
     def __close_file(self) -> None:
         if not self.__may_continue():
             return
@@ -937,12 +925,12 @@ class MainWindow(QMainWindow):
     def __may_continue(self) -> None:
         if not self.dirty:
             return True
-        msg = self.tr('Save annotations to "{}" before closing?').format(self.filename)
+        msg = self.tr('Save annotations to "{}" before closing?').format(self.image_path)
         answer = QMB.question(self, self.tr('Save annotations?'), msg, QMB.Save | QMB.Discard | QMB.Cancel, QMB.Save)
         if answer == QMB.Discard:
             return True
         elif answer == QMB.Save:
-            self.__save_file()
+            self.__save()
             return True
         else:
             return False
@@ -1003,7 +991,7 @@ class MainWindow(QMainWindow):
         if not self.__may_continue() or not dirpath:
             return
         self.image_dir = dirpath
-        self.filename = None
+        self.image_path = None
         self.file_list.clear()
         filenames = self.__scan_all_images(dirpath)
         if pattern:
