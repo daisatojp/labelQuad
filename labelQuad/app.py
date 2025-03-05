@@ -171,8 +171,8 @@ class MainWindow(QMainWindow):
         self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
         self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
         self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_shape, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
-        self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.copySelectedShape, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
-        self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.pasteSelectedShape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
+        self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.__copy_selected_shape, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
+        self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
         self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
         self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.undoShapeEdit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
         self.action_hide_all = self.__new_action(self.tr('&Hide\nPolygons'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all polygons'), enabled=False)
@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
             if self.output_dir:
                 label_file_without_path = osp.basename(label_file)
                 label_file = osp.join(self.output_dir, label_file_without_path)
-            self.saveLabels(label_file)
+            self.__save_labels(label_file)
             return
         self.dirty = True
         self.action_save.setEnabled(True)
@@ -394,7 +394,7 @@ class MainWindow(QMainWindow):
             title = '{} - {}*'.format(title, self.filename)
         self.setWindowTitle(title)
 
-    def setClean(self):
+    def __set_clean(self) -> None:
         self.dirty = False
         self.action_save.setEnabled(False)
         self.action_create_mode.setEnabled(True)
@@ -403,7 +403,7 @@ class MainWindow(QMainWindow):
             title = '{} - {}'.format(title, self.filename)
         self.setWindowTitle(title)
 
-    def toggleActions(self, value: bool = True):
+    def __toggle_actions(self, value: bool = True) -> None:
         self.zoom_widget.setEnabled(value)
         self.action_zoom_in.setEnabled(value)
         self.action_zoom_out.setEnabled(value)
@@ -421,7 +421,7 @@ class MainWindow(QMainWindow):
     def status(self, message, delay=5000):
         self.statusBar().showMessage(message, delay)
 
-    def resetState(self):
+    def __reset_state(self):
         self.label_list.clear()
         self.filename = None
         self.imagePath = None
@@ -446,7 +446,7 @@ class MainWindow(QMainWindow):
     def undoShapeEdit(self):
         self.canvas.restoreShape()
         self.label_list.clear()
-        self.loadShapes(self.canvas.shapes)
+        self.__load_shapes(self.canvas.shapes)
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
 
     def toggleDrawingSensitive(self, drawing=True):
@@ -675,7 +675,7 @@ class MainWindow(QMainWindow):
             item = self.label_list.findItemByShape(shape)
             self.label_list.removeItem(item)
 
-    def loadShapes(self, shapes, replace=True):
+    def __load_shapes(self, shapes, replace=True) -> None:
         self._noSelectionSlot = True
         for shape in shapes:
             self.addLabel(shape)
@@ -711,9 +711,9 @@ class MainWindow(QMainWindow):
             shape.other_data = other_data
 
             s.append(shape)
-        self.loadShapes(s)
+        self.__load_shapes(s)
 
-    def saveLabels(self, filename):
+    def __save_labels(self, filename: str) -> None:
         lf = LabelFile()
 
         def format_shape(s):
@@ -736,14 +736,12 @@ class MainWindow(QMainWindow):
         shapes = [format_shape(item.shape()) for item in self.label_list]
         try:
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
-            imageData = self.imageData if self._config['store_data'] else None
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
             lf.save(
                 filename=filename,
                 shapes=shapes,
                 imagePath=imagePath,
-                imageData=imageData,
                 imageHeight=self.image.height(),
                 imageWidth=self.image.width(),
                 otherData=self.otherData,
@@ -756,16 +754,14 @@ class MainWindow(QMainWindow):
                 items[0].setCheckState(Qt.Checked)
             return True
         except LabelFileError as e:
-            self.__error_message(
-                self.tr('Error saving label data'), self.tr('<b>%s</b>') % e
-            )
+            self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
             return False
 
-    def pasteSelectedShape(self):
-        self.loadShapes(self._copied_shapes, replace=False)
+    def __paste_selected_shape(self):
+        self.__load_shapes(self._copied_shapes, replace=False)
         self.__set_dirty()
 
-    def copySelectedShape(self):
+    def __copy_selected_shape(self):
         self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
         self.action_paste.setEnabled(len(self._copied_shapes) > 0)
 
@@ -863,12 +859,12 @@ class MainWindow(QMainWindow):
     def __set_fit_window(self) -> None:
         self.action_fit_width.setChecked(False)
         self.zoomMode = self.FIT_WINDOW
-        self.adjustScale()
+        self.__adjust_scale()
 
     def __set_fit_width(self) -> None:
         self.action_fit_window.setChecked(False)
         self.zoomMode = self.FIT_WIDTH
-        self.adjustScale()
+        self.__adjust_scale()
 
     def __enable_keep_prev_scale(self, enabled):
         self._config['keep_prev_scale'] = enabled
@@ -906,7 +902,7 @@ class MainWindow(QMainWindow):
             self.file_list_widget.repaint()
             return
 
-        self.resetState()
+        self.__reset_state()
         self.canvas.setEnabled(False)
         if filename is None:
             filename = self.settings.value('filename', '')
@@ -964,14 +960,14 @@ class MainWindow(QMainWindow):
         self.image = image
         self.filename = filename
         self.canvas.loadPixmap(QPixmap.fromImage(image))
-        self.setClean()
+        self.__set_clean()
         self.canvas.setEnabled(True)
         is_initial_load = not self.zoom_values
         if self.filename in self.zoom_values:
             self.zoomMode = self.zoom_values[self.filename][0]
             self.__set_zoom(self.zoom_values[self.filename][1])
         elif is_initial_load or not self._config['keep_prev_scale']:
-            self.adjustScale(initial=True)
+            self.__adjust_scale(initial=True)
         for orientation in self.scroll_values:
             if self.filename in self.scroll_values[orientation]:
                 self.__set_scroll(orientation, self.scroll_values[orientation][self.filename])
@@ -996,7 +992,7 @@ class MainWindow(QMainWindow):
             dialog.onNewValue(None)
         self.paintCanvas()
         self.addRecentFile(self.filename)
-        self.toggleActions(True)
+        self.__toggle_actions(True)
         self.canvas.setFocus()
         self.status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
         return True
@@ -1007,7 +1003,7 @@ class MainWindow(QMainWindow):
             and not self.image.isNull()
             and self.zoomMode != self.MANUAL_ZOOM
         ):
-            self.adjustScale()
+            self.__adjust_scale()
         super(MainWindow, self).resizeEvent(event)
 
     def paintCanvas(self):
@@ -1016,7 +1012,7 @@ class MainWindow(QMainWindow):
         self.canvas.adjustSize()
         self.canvas.update()
 
-    def adjustScale(self, initial=False):
+    def __adjust_scale(self, initial: bool = False) -> None:
         value = self.scalers[self.FIT_WINDOW if initial else self.zoomMode]()
         value = int(100 * value)
         self.zoom_widget.setValue(value)
@@ -1057,13 +1053,6 @@ class MainWindow(QMainWindow):
         else:
             event.ignore()
 
-    def dropEvent(self, event):
-        if not self.__may_continue():
-            event.ignore()
-            return
-        items = [i.toLocalFile() for i in event.mimeData().urls()]
-        self.importDroppedImageFiles(items)
-
     def __load_recent(self, filename):
         if self.__may_continue():
             self.__load_file(filename)
@@ -1103,14 +1092,14 @@ class MainWindow(QMainWindow):
            return
         filename = self.file_list_widget.currentItem().text()
         filename = osp.splitext(filename)[0] + '.json'
-        self.saveLabels(osp.join(self.annot_dir, filename))
+        self.__save_labels(osp.join(self.annot_dir, filename))
 
     def __close_file(self, _value=False):
         if not self.__may_continue():
             return
-        self.resetState()
-        self.setClean()
-        self.toggleActions(False)
+        self.__reset_state()
+        self.__set_clean()
+        self.__toggle_actions(False)
         self.canvas.setEnabled(False)
 
     def __may_continue(self):
@@ -1157,30 +1146,6 @@ class MainWindow(QMainWindow):
             item = self.file_list_widget.item(i)
             lst.append(item.text())
         return lst
-
-    def importDroppedImageFiles(self, imageFiles):
-        extensions = [
-            '.%s' % fmt.data().decode().lower()
-            for fmt in QImageReader.supportedImageFormats()]
-        self.filename = None
-        for file in imageFiles:
-            if file in self.imageList or not file.lower().endswith(tuple(extensions)):
-                continue
-            label_file = osp.splitext(file)[0] + '.json'
-            if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
-            item = QListWidgetItem(file)
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
-            self.file_list_widget.addItem(item)
-        if len(self.imageList) > 1:
-            self.action_open_next.setEnabled(True)
-            self.action_open_prev.setEnabled(True)
-        self.__open_next()
 
     def __open_image_dir_dialog(self) -> None:
         if not self.__may_continue():
