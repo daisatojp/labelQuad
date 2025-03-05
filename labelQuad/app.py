@@ -1585,10 +1585,8 @@ class LabelFile(object):
             flags = {}
         data = dict(
             version=__version__,
-            flags=flags,
             shapes=shapes,
             imagePath=imagePath,
-            imageData=imageData,
             imageHeight=imageHeight,
             imageWidth=imageWidth,
         )
