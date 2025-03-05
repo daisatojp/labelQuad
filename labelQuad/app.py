@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
             num_backups=self._config['canvas']['num_backups'],
             crosshair=self._config['canvas']['crosshair'])
         self.canvas.zoomRequest.connect(self.__zoom_request)
-        self.canvas.mouseMoved.connect(lambda pos: self.status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
+        self.canvas.mouseMoved.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
 
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.canvas)
@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         self.canvas.newShape.connect(self.__new_shape)
         self.canvas.shapeMoved.connect(self.__set_dirty)
         self.canvas.selectionChanged.connect(self.__shape_selection_changed)
-        self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
+        self.canvas.drawingPolygon.connect(self.__toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll_area)
 
@@ -289,7 +289,12 @@ class MainWindow(QMainWindow):
              self.action_undo_last_point,
              None,
              None))
-        self.tools = self.toolbar('Tools')
+
+        self.tools = ToolBar('Tools')
+        self.tools.setObjectName('ToolBar')
+        self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        self.addToolBar(Qt.TopToolBarArea, self.tools)
+
         utils.addActions(
             self.tools,
             (self.action_open_image_dir,
@@ -346,16 +351,23 @@ class MainWindow(QMainWindow):
 
         self.updateFileMenu()
 
-        self.zoom_widget.valueChanged.connect(self.paintCanvas)
+        self.zoom_widget.valueChanged.connect(self.__paint_canvas)
 
-    def toolbar(self, title, actions=None):
-        toolbar = ToolBar(title)
-        toolbar.setObjectName('%sToolBar' % title)
-        toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        if actions:
-            utils.addActions(toolbar, actions)
-        self.addToolBar(Qt.TopToolBarArea, toolbar)
-        return toolbar
+    def closeEvent(self, event):
+        if not self.__may_continue():
+            event.ignore()
+        self.settings.setValue('filename', self.filename if self.filename else '')
+        self.settings.setValue('window/size', self.size())
+        self.settings.setValue('window/position', self.pos())
+        self.settings.setValue('window/state', self.saveState())
+        self.settings.setValue('recentFiles', self.recentFiles)
+
+    def resizeEvent(self, event):
+        if (self.canvas) and \
+           (not self.image.isNull()) and \
+           (self.zoomMode != self.MANUAL_ZOOM):
+            self.__adjust_scale()
+        super(MainWindow, self).resizeEvent(event)
 
     def noShapes(self):
         return not len(self.label_list)
@@ -397,10 +409,7 @@ class MainWindow(QMainWindow):
         self.action_edit_mode.setEnabled(value)
         self.action_brightness_contrast.setEnabled(value)
 
-    def queueEvent(self, function):
-        QTimer.singleShot(0, function)
-
-    def status(self, message, delay=5000):
+    def __status(self, message: str, delay: int = 5000) -> None:
         self.statusBar().showMessage(message, delay)
 
     def __reset_state(self):
@@ -431,11 +440,7 @@ class MainWindow(QMainWindow):
         self.__load_shapes(self.canvas.shapes)
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
 
-    def toggleDrawingSensitive(self, drawing=True):
-        """Toggle drawing sensitive.
-
-        In the middle of drawing, toggling between modes should be disabled.
-        """
+    def __toggle_drawing_sensitive(self, drawing: bool = True) -> None:
         self.action_edit_mode.setEnabled(not drawing)
         self.action_undo_last_point.setEnabled(drawing)
         self.action_undo.setEnabled(not drawing)
@@ -886,7 +891,7 @@ class MainWindow(QMainWindow):
                 self.tr(f'Error opening file'),
                 self.tr(f'No such file: <b>{filename}</b>'))
             return False
-        self.status(str(self.tr('Loading %s...')) % osp.basename(str(filename)))
+        self.__status(str(self.tr('Loading %s...')) % osp.basename(str(filename)))
         label_file = osp.splitext(filename)[0] + '.json'
         if self.output_dir:
             label_file_without_path = osp.basename(label_file)
@@ -903,7 +908,7 @@ class MainWindow(QMainWindow):
                     )
                     % (e, label_file),
                 )
-                self.status(self.tr('Error reading %s') % label_file)
+                self.__status(self.tr('Error reading %s') % label_file)
                 return False
             self.imageData = self.labelFile.imageData
             self.imagePath = osp.join(
@@ -929,7 +934,7 @@ class MainWindow(QMainWindow):
                     '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
                     'Supported image formats: {1}</p>'
                 ).format(filename, ','.join(formats)))
-            self.status(self.tr('Error reading %s') % filename)
+            self.__status(self.tr('Error reading %s') % filename)
             return False
         self.image = image
         self.filename = filename
@@ -964,23 +969,14 @@ class MainWindow(QMainWindow):
         self.brightness_contrast_values[self.filename] = (brightness, contrast)
         if brightness is not None or contrast is not None:
             dialog.onNewValue(None)
-        self.paintCanvas()
+        self.__paint_canvas()
         self.__add_recent_file(self.filename)
         self.__toggle_actions(True)
         self.canvas.setFocus()
-        self.status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
+        self.__status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
         return True
 
-    def resizeEvent(self, event):
-        if (
-            self.canvas
-            and not self.image.isNull()
-            and self.zoomMode != self.MANUAL_ZOOM
-        ):
-            self.__adjust_scale()
-        super(MainWindow, self).resizeEvent(event)
-
-    def paintCanvas(self):
+    def __paint_canvas(self):
         assert not self.image.isNull(), 'cannot paint null image'
         self.canvas.scale = 0.01 * self.zoom_widget.value()
         self.canvas.adjustSize()
@@ -1005,27 +1001,6 @@ class MainWindow(QMainWindow):
     def __scale_fit_width(self):
         w = self.centralWidget().width() - 2.0
         return w / self.canvas.pixmap.width()
-
-    def closeEvent(self, event):
-        if not self.__may_continue():
-            event.ignore()
-        self.settings.setValue('filename', self.filename if self.filename else '')
-        self.settings.setValue('window/size', self.size())
-        self.settings.setValue('window/position', self.pos())
-        self.settings.setValue('window/state', self.saveState())
-        self.settings.setValue('recentFiles', self.recentFiles)
-
-    def dragEnterEvent(self, event):
-        extensions = [
-            '.%s' % fmt.data().decode().lower()
-            for fmt in QImageReader.supportedImageFormats()
-        ]
-        if event.mimeData().hasUrls():
-            items = [i.toLocalFile() for i in event.mimeData().urls()]
-            if any([i.lower().endswith(tuple(extensions)) for i in items]):
-                event.accept()
-        else:
-            event.ignore()
 
     def __load_recent(self, filename):
         if self.__may_continue():
