@@ -188,8 +188,8 @@ class MainWindow(QMainWindow):
         self.action_close = self.__new_action(self.tr('&Close'), slot=self.__close_file, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
         self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
         self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
-        self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_shape, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
-        self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.__copy_selected_shape, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
+        self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_quad, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
+        self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.__copy_selected_quad, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
         self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
         self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
         self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.__undo_shape_edit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
@@ -291,8 +291,8 @@ class MainWindow(QMainWindow):
              self.action_undo_last_point))
         utils.addActions(
             self.canvas.menus[1],
-            (self.__new_action('&Copy here', self.__copy_shape),
-             self.__new_action('&Move here', self.__move_shape)))
+            (self.__new_action('&Copy here', self.__copy_quad),
+             self.__new_action('&Move here', self.__move_quad)))
         utils.addActions(
             self.menu_edit,
             (self.action_create_mode,
@@ -394,27 +394,20 @@ class MainWindow(QMainWindow):
         self.image_path = image_path
         self.image_data = image_data
 
-        # with open(annot_path, 'r') as f:
-        #     j = json.load(f)
-        # quads = []
-        # for shape in shapes:
-        #     label = shape['label']
-        #     points = shape['points']
-        #     shape_type = shape['shape_type']
-        #     other_data = shape['other_data']
-
-        #     if not points:
-        #         continue
-
-        #     shape = Shape(label=label, shape_type=shape_type)
-        #     for x, y in points:
-        #         shape.addPoint(QPointF(x, y))
-        #     shape.close()
-
-        #     shape.other_data = other_data
-
-        #     s.append(shape)
-        # self.__load_shapes(s)
+        if (annot_path is not None) and osp.exists(annot_path):
+            with open(annot_path, 'r') as f:
+                j = json.load(f)
+            quads = []
+            for shape in j['shapes']:
+                label = shape['label']
+                quad = Shape(label=label, shape_type='polygon')
+                quad.addPoint(QPointF(shape['p1x'], shape['p1y']))
+                quad.addPoint(QPointF(shape['p2x'], shape['p2y']))
+                quad.addPoint(QPointF(shape['p3x'], shape['p3y']))
+                quad.addPoint(QPointF(shape['p4x'], shape['p4y']))
+                quad.close()
+                quads.append(quad)
+            self.__load_quads(quads)
 
         self.canvas.loadPixmap(QPixmap.fromImage(self.image))
         self.__set_clean()
@@ -444,6 +437,7 @@ class MainWindow(QMainWindow):
         self.brightness_contrast_values[self.image_path] = (brightness, contrast)
         if brightness is not None or contrast is not None:
             dialog.onNewValue(None)
+
         self.__paint_canvas()
         self.__add_recent_file(self.image_path)
         self.__toggle_actions(True)
@@ -535,7 +529,7 @@ class MainWindow(QMainWindow):
     def __undo_shape_edit(self) -> None:
         self.canvas.restoreShape()
         self.quad_list.clear()
-        self.__load_shapes(self.canvas.shapes)
+        self.__load_quads(self.canvas.shapes)
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
 
     def __toggle_drawing_sensitive(self, drawing: bool = True) -> None:
@@ -640,7 +634,7 @@ class MainWindow(QMainWindow):
         self.action_copy.setEnabled(n_selected)
         self.action_edit.setEnabled(n_selected)
 
-    def __add_label(self, quad: Shape) -> None:
+    def __add_quad(self, quad: Shape) -> None:
         text = quad.label
         label_list_item = LabelListWidgetItem(text, quad)
         self.quad_list.addItem(label_list_item)
@@ -672,26 +666,33 @@ class MainWindow(QMainWindow):
         label_id += self._config['shift_auto_shape_color']
         return tuple(LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)].tolist())
 
-    def __load_shapes(self, shapes, replace=True) -> None:
+    def __load_quads(self, quads: list[Shape], replace: bool = True) -> None:
         self._noSelectionSlot = True
-        for shape in shapes:
-            self.__add_label(shape)
+        for quad in quads:
+            self.__add_quad(quad)
         self.quad_list.clearSelection()
         self._noSelectionSlot = False
-        self.canvas.loadShapes(shapes, replace=replace)
+        self.canvas.loadShapes(quads, replace=replace)
 
     def __remove_quads(self, quads: list[Shape]) -> None:
         for quad in quads:
             item = self.quad_list.findItemByShape(quad)
             self.quad_list.removeItem(item)
 
-    def __paste_selected_shape(self) -> None:
-        self.__load_shapes(self._copied_shapes, replace=False)
+    def __delete_selected_quad(self) -> None:
+        self.__remove_quads(self.canvas.deleteSelected())
         self.__set_dirty()
+        if 0 <= len(self.quad_list):
+            for action in self.actions_on_shapes_present:
+                action.setEnabled(False)
 
-    def __copy_selected_shape(self) -> None:
+    def __copy_selected_quad(self) -> None:
         self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
         self.action_paste.setEnabled(len(self._copied_shapes) > 0)
+
+    def __paste_selected_shape(self) -> None:
+        self.__load_quads(self._copied_shapes, replace=False)
+        self.__set_dirty()
 
     def __label_selection_changed(self) -> None:
         if self._noSelectionSlot:
@@ -732,7 +733,7 @@ class MainWindow(QMainWindow):
         if text:
             self.quad_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
-            self.__add_label(shape)
+            self.__add_quad(shape)
             self.action_edit_mode.setEnabled(True)
             self.action_undo_last_point.setEnabled(False)
             self.action_undo.setEnabled(True)
@@ -897,21 +898,14 @@ class MainWindow(QMainWindow):
     def __error_message(self, title: str, message: str) -> None:
         return QMessageBox.critical(self, title, f'<p><b>{title}</b></p>{message}')
 
-    def __delete_selected_shape(self) -> None:
-        self.__remove_quads(self.canvas.deleteSelected())
-        self.__set_dirty()
-        if 0 <= len(self.quad_list):
-            for action in self.actions_on_shapes_present:
-                action.setEnabled(False)
-
-    def __copy_shape(self) -> None:
+    def __copy_quad(self) -> None:
         self.canvas.endMove(copy=True)
-        for shape in self.canvas.selectedShapes:
-            self.__add_label(shape)
+        for quad in self.canvas.selectedShapes:
+            self.__add_quad(quad)
         self.quad_list.clearSelection()
         self.__set_dirty()
 
-    def __move_shape(self) -> None:
+    def __move_quad(self) -> None:
         self.canvas.endMove(copy=False)
         self.__set_dirty()
 
@@ -935,6 +929,7 @@ class MainWindow(QMainWindow):
         self.annot_dir = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
+        self.__load()
         self.__refresh_file_check_state()
 
     def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None) -> None:
