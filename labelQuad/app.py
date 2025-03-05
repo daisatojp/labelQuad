@@ -81,10 +81,10 @@ class MainWindow(QMainWindow):
             fit_to_content=self._config['fit_to_content'])
 
         self.label_list = LabelListWidget()
-        self.label_list.itemSelectionChanged.connect(self.labelSelectionChanged)
+        self.label_list.itemSelectionChanged.connect(self.__label_selection_changed)
         self.label_list.itemDoubleClicked.connect(self.__edit_label)
-        self.label_list.itemChanged.connect(self.labelItemChanged)
-        self.label_list.itemDropped.connect(self.labelOrderChanged)
+        self.label_list.itemChanged.connect(self.__label_item_changed)
+        self.label_list.itemDropped.connect(self.__label_order_changed)
         self.shape_dock = QDockWidget(self.tr('Polygon Labels'), self)
         self.shape_dock.setObjectName('Labels')
         self.shape_dock.setWidget(self.label_list)
@@ -795,7 +795,7 @@ class MainWindow(QMainWindow):
         self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
         self.action_paste.setEnabled(len(self._copied_shapes) > 0)
 
-    def labelSelectionChanged(self):
+    def __label_selection_changed(self):
         if self._noSelectionSlot:
             return
         if self.canvas.editing():
@@ -807,11 +807,11 @@ class MainWindow(QMainWindow):
             else:
                 self.canvas.deSelectShape()
 
-    def labelItemChanged(self, item):
+    def __label_item_changed(self, item):
         shape = item.shape()
         self.canvas.setShapeVisible(shape, item.checkState() == Qt.Checked)
 
-    def labelOrderChanged(self):
+    def __label_order_changed(self):
         self.__set_dirty()
         self.canvas.loadShapes([item.shape() for item in self.label_list])
 
@@ -1148,41 +1148,6 @@ class MainWindow(QMainWindow):
         filename = osp.splitext(filename)[0] + '.json'
         self.saveLabels(osp.join(self.annot_dir, filename))
 
-    def saveFileDialog(self):
-        caption = self.tr('%s - Choose File') % __appname__
-        filters = self.tr('Label files (*%s)') % LabelFile.suffix
-        if self.output_dir:
-            dlg = QFileDialog(self, caption, self.output_dir, filters)
-        else:
-            dlg = QFileDialog(self, caption, self.currentPath(), filters)
-        dlg.setDefaultSuffix(LabelFile.suffix[1:])
-        dlg.setAcceptMode(QFileDialog.AcceptSave)
-        dlg.setOption(QFileDialog.DontConfirmOverwrite, False)
-        dlg.setOption(QFileDialog.DontUseNativeDialog, False)
-        basename = osp.basename(osp.splitext(self.filename)[0])
-        if self.output_dir:
-            default_labelfile_name = osp.join(
-                self.output_dir, basename + LabelFile.suffix
-            )
-        else:
-            default_labelfile_name = osp.join(
-                self.currentPath(), basename + LabelFile.suffix
-            )
-        filename = dlg.getSaveFileName(
-            self,
-            self.tr('Choose File'),
-            default_labelfile_name,
-            self.tr('Label files (*%s)') % LabelFile.suffix,
-        )
-        if isinstance(filename, tuple):
-            filename, _ = filename
-        return filename
-
-    def _saveFile(self, filename):
-        if filename and self.saveLabels(filename):
-            self.addRecentFile(filename)
-            self.setClean()
-
     def closeFile(self, _value=False):
         if not self.__may_continue():
             return
@@ -1190,28 +1155,6 @@ class MainWindow(QMainWindow):
         self.setClean()
         self.toggleActions(False)
         self.canvas.setEnabled(False)
-
-    def getLabelFile(self):
-        if self.filename.lower().endswith('.json'):
-            label_file = self.filename
-        else:
-            label_file = osp.splitext(self.filename)[0] + '.json'
-
-        return label_file
-
-    def hasLabels(self):
-        if self.noShapes():
-            self.__error_message(
-                'No objects labeled',
-                'You must label at least one object to save the file.')
-            return False
-        return True
-
-    def hasLabelFile(self):
-        if self.filename is None:
-            return False
-        label_file = self.getLabelFile()
-        return osp.exists(label_file)
 
     def __may_continue(self):
         if not self.dirty:
