@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
             completion=self._config['label_completion'],
             fit_to_content=self._config['fit_to_content'])
         self.label_dialog.edit_group_id.setDisabled(True)
+        self.label_dialog.editDescription.setDisabled(True)
 
         self.label_list = UniqueLabelQListWidget()
         if self._config['labels']:
@@ -134,7 +135,7 @@ class MainWindow(QMainWindow):
 
         self.setAcceptDrops(True)
 
-        self.canvas = self.quad_list.canvas = Canvas(
+        self.canvas = Canvas(
             epsilon=self._config['epsilon'],
             double_click=self._config['canvas']['double_click'],
             num_backups=self._config['canvas']['num_backups'],
@@ -477,7 +478,7 @@ class MainWindow(QMainWindow):
                     return True
         return False
 
-    def __edit_label(self, value=None):
+    def __edit_label(self) -> None:
         if not self.canvas.editing():
             return
 
@@ -490,40 +491,31 @@ class MainWindow(QMainWindow):
 
         if len(items) == 1:
             edit_text = True
-            edit_description = True
         else:
             edit_text = all(item.shape().label == shape.label for item in items[1:])
-            edit_description = all(item.shape().description == shape.description for item in items[1:])
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(True)
             self.label_dialog.label_list.setDisabled(True)
-        if not edit_description:
-            self.label_dialog.editDescription.setDisabled(True)
 
-        text, _, _, description = self.label_dialog.popUp(
+        text, _, _, _ = self.label_dialog.popUp(
             text=shape.label if edit_text else '',
-            flags=None,
-            description=shape.description if edit_description else None)
+            flags=None)
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(False)
             self.label_dialog.label_list.setDisabled(False)
-        if not edit_description:
-            self.label_dialog.editDescription.setDisabled(False)
 
         if text is None:
-            assert description is None
             return
 
         self.canvas.storeShapes()
         for item in items:
             self._update_item(
                 item=item,
-                text=text if edit_text else None,
-                description=description if edit_description else None)
+                text=text if edit_text else None)
 
-    def _update_item(self, item, text, description):
+    def _update_item(self, item, text) -> None:
         if not self.validateLabel(text):
             self.__error_message(
                 self.tr('Invalid label'),
@@ -532,8 +524,6 @@ class MainWindow(QMainWindow):
         shape = item.shape()
         if text is not None:
             shape.label = text
-        if description is not None:
-            shape.description = description
         self._update_shape_color(shape)
         item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
             html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
@@ -620,11 +610,6 @@ class MainWindow(QMainWindow):
             return self._config['default_shape_color']
         return (0, 255, 0)
 
-    def __remove_quads(self, shapes):
-        for shape in shapes:
-            item = self.quad_list.findItemByShape(shape)
-            self.quad_list.removeItem(item)
-
     def __load_shapes(self, shapes, replace=True) -> None:
         self._noSelectionSlot = True
         for shape in shapes:
@@ -633,25 +618,24 @@ class MainWindow(QMainWindow):
         self._noSelectionSlot = False
         self.canvas.loadShapes(shapes, replace=replace)
 
+    def __remove_quads(self, quads: list[Shape]) -> None:
+        for quad in quads:
+            item = self.quad_list.findItemByShape(quad)
+            self.quad_list.removeItem(item)
+
     def loadLabels(self, shapes):
         s = []
         for shape in shapes:
             label = shape['label']
             points = shape['points']
             shape_type = shape['shape_type']
-            description = shape.get('description', '')
             other_data = shape['other_data']
 
             if not points:
                 # skip point-empty shape
                 continue
 
-            shape = Shape(
-                label=label,
-                shape_type=shape_type,
-                description=description,
-                mask=shape['mask'],
-            )
+            shape = Shape(label=label, shape_type=shape_type)
             for x, y in points:
                 shape.addPoint(QPointF(x, y))
             shape.close()
@@ -670,14 +654,7 @@ class MainWindow(QMainWindow):
                 dict(
                     label=s.label,
                     points=[(p.x(), p.y()) for p in s.points],
-                    description=s.description,
-                    shape_type=s.shape_type,
-                    flags=None,
-                    mask=None
-                    if s.mask is None
-                    else utils.img_arr_to_b64(s.mask.astype(np.uint8)),
-                )
-            )
+                    shape_type=s.shape_type))
             return data
 
         shapes = [format_shape(item.shape()) for item in self.quad_list]
@@ -737,10 +714,9 @@ class MainWindow(QMainWindow):
         text = None
         if items:
             text = items[0].data(Qt.UserRole)
-        description = ''
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text, _, _, description = self.label_dialog.popUp(text)
+            text, _, _, _ = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text and not self.validateLabel(text):
@@ -752,7 +728,6 @@ class MainWindow(QMainWindow):
         if text:
             self.quad_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
-            shape.description = description
             self.__add_label(shape)
             self.action_edit_mode.setEnabled(True)
             self.action_undo_last_point.setEnabled(False)
