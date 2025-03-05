@@ -136,7 +136,7 @@ class MainWindow(QMainWindow):
         self.canvas.scrollRequest.connect(self.__scroll_request)
         self.canvas.newShape.connect(self.__new_shape)
         self.canvas.shapeMoved.connect(self.__set_dirty)
-        self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
+        self.canvas.selectionChanged.connect(self.__shape_selection_changed)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
 
         self.setCentralWidget(scroll_area)
@@ -217,7 +217,7 @@ class MainWindow(QMainWindow):
         label_menu = QMenu()
         utils.addActions(label_menu, (self.action_edit, self.action_delete))
         self.label_list.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.label_list.customContextMenuRequested.connect(self.popLabelListMenu)
+        self.label_list.customContextMenuRequested.connect(self.__pop_label_list_menu)
 
         self.menu_file = self.menuBar().addMenu(self.tr('&File'))
         self.menu_edit = self.menuBar().addMenu(self.tr('&Edit'))
@@ -276,8 +276,37 @@ class MainWindow(QMainWindow):
             self.canvas.menus[1],
             (self.__new_action('&Copy here', self.__copy_shape),
              self.__new_action('&Move here', self.__move_shape)))
-
+        utils.addActions(
+            self.menu_edit,
+            (self.action_create_mode,
+             self.action_edit_mode,
+             self.action_edit,
+             self.action_copy,
+             self.action_paste,
+             self.action_delete,
+             None,
+             self.action_undo,
+             self.action_undo_last_point,
+             None,
+             None))
         self.tools = self.toolbar('Tools')
+        utils.addActions(
+            self.tools,
+            (self.action_open_image_dir,
+             self.action_open_annot_dir,
+             self.action_open_prev,
+             self.action_open_next,
+             self.action_save,
+             None,
+             self.action_create_mode,
+             self.action_edit_mode,
+             self.action_delete,
+             self.action_undo,
+             self.action_brightness_contrast,
+             None,
+             self.action_fit_window,
+             self.zoom,
+             None))
         self.actions_on_shapes_present = (
             self.action_hide_all,
             self.action_show_all,
@@ -319,8 +348,6 @@ class MainWindow(QMainWindow):
 
         self.zoom_widget.valueChanged.connect(self.paintCanvas)
 
-        self.populateModeActions()
-
     def toolbar(self, title, actions=None):
         toolbar = ToolBar(title)
         toolbar.setObjectName('%sToolBar' % title)
@@ -332,51 +359,6 @@ class MainWindow(QMainWindow):
 
     def noShapes(self):
         return not len(self.label_list)
-
-    def populateModeActions(self):
-        self.tools.clear()
-        utils.addActions(
-            self.tools,
-            (self.action_open_image_dir,
-             self.action_open_annot_dir,
-             self.action_open_prev,
-             self.action_open_next,
-             self.action_save,
-             None,
-             self.action_create_mode,
-             self.action_edit_mode,
-             self.action_delete,
-             self.action_undo,
-             self.action_brightness_contrast,
-             None,
-             self.action_fit_window,
-             self.zoom,
-             None))
-        self.canvas.menus[0].clear()
-        utils.addActions(
-            self.canvas.menus[0],
-            (self.action_create_mode,
-             self.action_edit_mode,
-             self.action_edit,
-             self.action_copy,
-             self.action_paste,
-             self.action_delete,
-             self.action_undo,
-             self.action_undo_last_point))
-        self.menu_edit.clear()
-        utils.addActions(
-            self.menu_edit,
-            (self.action_create_mode,
-             self.action_edit_mode,
-             self.action_edit,
-             self.action_copy,
-             self.action_paste,
-             self.action_delete,
-             None,
-             self.action_undo,
-             self.action_undo_last_point,
-             None,
-             None))
 
     def __set_dirty(self):
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
@@ -436,7 +418,7 @@ class MainWindow(QMainWindow):
             return items[0]
         return None
 
-    def addRecentFile(self, filename):
+    def __add_recent_file(self, filename):
         if filename in self.recentFiles:
             self.recentFiles.remove(filename)
         elif len(self.recentFiles) >= self.maxRecent:
@@ -485,7 +467,7 @@ class MainWindow(QMainWindow):
             action.triggered.connect(partial(self.__load_recent, f))
             menu.addAction(action)
 
-    def popLabelListMenu(self, point):
+    def __pop_label_list_menu(self, point):
         self.menu_label_list.exec_(self.label_list.mapToGlobal(point))
 
     def validateLabel(self, label):
@@ -515,12 +497,8 @@ class MainWindow(QMainWindow):
             edit_description = True
         else:
             edit_text = all(item.shape().label == shape.label for item in items[1:])
-            edit_group_id = all(
-                item.shape().group_id == shape.group_id for item in items[1:]
-            )
-            edit_description = all(
-                item.shape().description == shape.description for item in items[1:]
-            )
+            edit_group_id = all(item.shape().group_id == shape.group_id for item in items[1:])
+            edit_description = all(item.shape().description == shape.description for item in items[1:])
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(True)
@@ -534,8 +512,7 @@ class MainWindow(QMainWindow):
             text=shape.label if edit_text else '',
             flags=None,
             group_id=shape.group_id if edit_group_id else None,
-            description=shape.description if edit_description else None,
-        )
+            description=shape.description if edit_description else None)
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(False)
@@ -593,14 +570,11 @@ class MainWindow(QMainWindow):
             load=False)
 
     def __file_selection_changed(self) -> None:
-        if self.file_list_widget.currentRow() < 0:
-            return
         if not self.__may_continue():
             return
-        file_path = osp.join(self.image_dir, self.file_list_widget.currentItem().text())
-        self.__load_file(file_path)
+        self.__load_file(self.__current_image_path())
 
-    def shapeSelectionChanged(self, selected_shapes):
+    def __shape_selection_changed(self, selected_shapes):
         self._noSelectionSlot = True
         for shape in self.canvas.selectedShapes:
             shape.selected = False
@@ -670,7 +644,7 @@ class MainWindow(QMainWindow):
             return self._config['default_shape_color']
         return (0, 255, 0)
 
-    def remLabels(self, shapes):
+    def __remove_quads(self, shapes):
         for shape in shapes:
             item = self.label_list.findItemByShape(shape)
             self.label_list.removeItem(item)
@@ -991,7 +965,7 @@ class MainWindow(QMainWindow):
         if brightness is not None or contrast is not None:
             dialog.onNewValue(None)
         self.paintCanvas()
-        self.addRecentFile(self.filename)
+        self.__add_recent_file(self.filename)
         self.__toggle_actions(True)
         self.canvas.setFocus()
         self.status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
@@ -1118,15 +1092,12 @@ class MainWindow(QMainWindow):
     def __error_message(self, title, message):
         return QMessageBox.critical(self, title, '<p><b>%s</b></p>%s' % (title, message))
 
-    def __delete_selected_shape(self):
-        yes, no = QMessageBox.Yes, QMessageBox.No
-        msg = self.tr('You are about to permanently delete {} polygons, ' 'proceed anyway?').format(len(self.canvas.selectedShapes))
-        if yes == QMessageBox.warning(self, self.tr('Attention'), msg, yes | no, yes):
-            self.remLabels(self.canvas.deleteSelected())
-            self.__set_dirty()
-            if self.noShapes():
-                for action in self.actions_on_shapes_present:
-                    action.setEnabled(False)
+    def __delete_selected_shape(self) -> None:
+        self.__remove_quads(self.canvas.deleteSelected())
+        self.__set_dirty()
+        if self.noShapes():
+            for action in self.actions_on_shapes_present:
+                action.setEnabled(False)
 
     def __copy_shape(self):
         self.canvas.endMove(copy=True)
@@ -1220,19 +1191,18 @@ class MainWindow(QMainWindow):
                 if file.lower().endswith(tuple(extensions)):
                     relativePath = os.path.normpath(osp.join(root, file))
                     images.append(relativePath)
-        images = natsort.os_sorted(images)
-        return images
+        return natsort.os_sorted(images)
 
     def __new_action(
             self,
             text,
             slot=None,
             shortcut=None,
-            icon=None,
-            tip=None,
-            checkable=False,
-            enabled=True,
-            checked=False,
+            icon: Optional[str] = None,
+            tip: Optional[str] = None,
+            checkable: bool = False,
+            enabled: bool = True,
+            checked: bool = False,
             ) -> QAction:
         a = QAction(text, self)
         if icon is not None:
@@ -1254,6 +1224,6 @@ class MainWindow(QMainWindow):
         a.setChecked(checked)
         return a
 
-    def __new_icon(self, icon):
+    def __new_icon(self, icon: str) -> QIcon:
         icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), '../labelQuad/icons')
-        return QIcon(osp.join(':/', icons_dir, '%s.png' % icon))
+        return QIcon(osp.join(':/', icons_dir, f'{icon}.png'))
