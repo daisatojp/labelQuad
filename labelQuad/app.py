@@ -8,6 +8,7 @@ from typing import Optional
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QMessageBox as QMB
 import imgviz
 import natsort
 import numpy as np
@@ -42,7 +43,6 @@ class MainWindow(QMainWindow):
     def __init__(
             self,
             config=None,
-            filename=None,
             output=None,
             output_file=None,
             output_dir=None):
@@ -66,10 +66,9 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
 
-        self.dirty = False
-
+        self.image_dir: Optional[str] = None
+        self.dirty: bool = False
         self._noSelectionSlot = False
-
         self._copied_shapes = None
 
         self.label_dialog = LabelDialog(
@@ -79,8 +78,6 @@ class MainWindow(QMainWindow):
             show_text_field=self._config['show_label_text_field'],
             completion=self._config['label_completion'],
             fit_to_content=self._config['fit_to_content'])
-
-        self.lastOpenDir = None
 
         self.label_list = LabelListWidget()
         self.label_list.itemSelectionChanged.connect(self.labelSelectionChanged)
@@ -126,7 +123,7 @@ class MainWindow(QMainWindow):
             double_click=self._config['canvas']['double_click'],
             num_backups=self._config['canvas']['num_backups'],
             crosshair=self._config['canvas']['crosshair'])
-        self.canvas.zoomRequest.connect(self.zoomRequest)
+        self.canvas.zoomRequest.connect(self.__zoom_request)
         self.canvas.mouseMoved.connect(lambda pos: self.status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
 
         scroll_area = QScrollArea()
@@ -135,9 +132,8 @@ class MainWindow(QMainWindow):
         self.scroll_bars = {
             Qt.Vertical: scroll_area.verticalScrollBar(),
             Qt.Horizontal: scroll_area.horizontalScrollBar()}
-        self.canvas.scrollRequest.connect(self.scrollRequest)
-
-        self.canvas.newShape.connect(self.newShape)
+        self.canvas.scrollRequest.connect(self.__scroll_request)
+        self.canvas.newShape.connect(self.__new_shape)
         self.canvas.shapeMoved.connect(self.__set_dirty)
         self.canvas.selectionChanged.connect(self.shapeSelectionChanged)
         self.canvas.drawingPolygon.connect(self.toggleDrawingSensitive)
@@ -167,7 +163,7 @@ class MainWindow(QMainWindow):
         self.action_open = self.__new_action(self.tr('&Open\n'), slot=self.openFile, shortcut=shortcuts['open'], icon='open', tip=self.tr('Open image or label file'))
         self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
-        self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.saveFile, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
+        self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save_file, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
         self.action_save_as = self.__new_action(self.tr('&Save As'), slot=self.__save_file_as, shortcut=shortcuts['save_as'], icon='save-as', tip=self.tr('Save labels to a different file'), enabled=False)
         self.action_change_output_dir = self.__new_action(self.tr('&Change Output Dir'), slot=self.changeOutputDirDialog, shortcut=shortcuts['save_to'], icon='open', tip=self.tr('Change where annotations are loaded/saved'))
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
@@ -635,16 +631,16 @@ class MainWindow(QMainWindow):
 
     def __file_search_changed(self) -> None:
         self.__import_dir_images(
-            self.lastOpenDir,
+            self.image_dir,
             pattern=self.file_search.text(),
             load=False)
 
     def __file_selection_changed(self) -> None:
         if self.file_list_widget.currentRow() < 0:
             return
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
-        file_path = osp.join(self.lastOpenDir, self.file_list_widget.currentItem().text())
+        file_path = osp.join(self.image_dir, self.file_list_widget.currentItem().text())
         self.__load_file(file_path)
 
     def shapeSelectionChanged(self, selected_shapes):
@@ -836,7 +832,7 @@ class MainWindow(QMainWindow):
         self.__set_dirty()
         self.canvas.loadShapes([item.shape() for item in self.label_list])
 
-    def newShape(self):
+    def __new_shape(self) -> None:
         items = self.unique_label_list.selectedItems()
         text = None
         if items:
@@ -868,13 +864,13 @@ class MainWindow(QMainWindow):
             self.canvas.undoLastLine()
             self.canvas.shapesBackups.pop()
 
-    def scrollRequest(self, delta, orientation):
+    def __scroll_request(self, delta, orientation):
         units = -delta * 0.1  # natural scroll
         bar = self.scroll_bars[orientation]
         value = bar.value() + bar.singleStep() * units
-        self.setScroll(orientation, value)
+        self.__set_scroll(orientation, value)
 
-    def setScroll(self, orientation, value):
+    def __set_scroll(self, orientation, value):
         self.scroll_bars[orientation].setValue(int(value))
         self.scroll_values[orientation][self.filename] = value
 
@@ -893,7 +889,7 @@ class MainWindow(QMainWindow):
             zoom_value = math.floor(zoom_value)
         self.__set_zoom(zoom_value)
 
-    def zoomRequest(self, delta, pos):
+    def __zoom_request(self, delta, pos):
         canvas_width_old = self.canvas.width()
         units = 1.1
         if delta < 0:
@@ -904,8 +900,8 @@ class MainWindow(QMainWindow):
             canvas_scale_factor = canvas_width_new / canvas_width_old
             x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
             y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
-            self.setScroll(Qt.Horizontal, self.scroll_bars[Qt.Horizontal].value() + x_shift)
-            self.setScroll(Qt.Vertical, self.scroll_bars[Qt.Vertical].value() + y_shift)
+            self.__set_scroll(Qt.Horizontal, self.scroll_bars[Qt.Horizontal].value() + x_shift)
+            self.__set_scroll(Qt.Vertical, self.scroll_bars[Qt.Vertical].value() + y_shift)
 
     def __set_fit_window(self) -> None:
         self.action_fit_width.setChecked(False)
@@ -1029,7 +1025,7 @@ class MainWindow(QMainWindow):
             self.adjustScale(initial=True)
         for orientation in self.scroll_values:
             if self.filename in self.scroll_values[orientation]:
-                self.setScroll(orientation, self.scroll_values[orientation][self.filename])
+                self.__set_scroll(orientation, self.scroll_values[orientation][self.filename])
         dialog = BrightnessContrastDialog(
             utils.img_data_to_pil(self.imageData),
             self.__on_new_brightness_contrast,
@@ -1092,7 +1088,7 @@ class MainWindow(QMainWindow):
         return w / self.canvas.pixmap.width()
 
     def closeEvent(self, event):
-        if not self.mayContinue():
+        if not self.__may_continue():
             event.ignore()
         self.settings.setValue('filename', self.filename if self.filename else '')
         self.settings.setValue('window/size', self.size())
@@ -1113,21 +1109,21 @@ class MainWindow(QMainWindow):
             event.ignore()
 
     def dropEvent(self, event):
-        if not self.mayContinue():
+        if not self.__may_continue():
             event.ignore()
             return
         items = [i.toLocalFile() for i in event.mimeData().urls()]
         self.importDroppedImageFiles(items)
 
     def __load_recent(self, filename):
-        if self.mayContinue():
+        if self.__may_continue():
             self.__load_file(filename)
 
     def __open_prev(self, _value=False):
         keep_prev = self._config['keep_prev']
         if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self._config['keep_prev'] = True
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
         if len(self.imageList) <= 0:
             return
@@ -1144,7 +1140,7 @@ class MainWindow(QMainWindow):
         keep_prev = self._config['keep_prev']
         if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
             self._config['keep_prev'] = True
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
         if self.file_list_widget.count() < 0:
             return
@@ -1158,11 +1154,11 @@ class MainWindow(QMainWindow):
         self.file_list_widget.setCurrentRow(row)
         filename = self.file_list_widget.item(row).text()
         if load:
-            self.__load_file(osp.join(self.lastOpenDir, filename))
+            self.__load_file(osp.join(self.image_dir, filename))
         self._config['keep_prev'] = keep_prev
 
     def openFile(self, _value=False):
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
         path = osp.dirname(str(self.filename)) if self.filename else '.'
         formats = [
@@ -1204,17 +1200,16 @@ class MainWindow(QMainWindow):
         self.statusBar().show()
 
         current_filename = self.filename
-        self.__import_dir_images(self.lastOpenDir, load=False)
+        self.__import_dir_images(self.image_dir, load=False)
 
         if current_filename in self.imageList:
             # retain currently selected file
             self.file_list_widget.setCurrentRow(self.imageList.index(current_filename))
             self.file_list_widget.repaint()
 
-    def saveFile(self, _value=False):
+    def __save_file(self, _value=False):
         assert not self.image.isNull(), 'cannot save empty image'
         if self.labelFile:
-            # DL20180323 - overwrite when in directory
             self._saveFile(self.labelFile.filename)
         elif self.output_file:
             self._saveFile(self.output_file)
@@ -1262,7 +1257,7 @@ class MainWindow(QMainWindow):
             self.setClean()
 
     def closeFile(self, _value=False):
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
         self.resetState()
         self.setClean()
@@ -1289,28 +1284,20 @@ class MainWindow(QMainWindow):
     def hasLabelFile(self):
         if self.filename is None:
             return False
-
         label_file = self.getLabelFile()
         return osp.exists(label_file)
 
-    def mayContinue(self):
+    def __may_continue(self):
         if not self.dirty:
             return True
-        mb = QMessageBox
         msg = self.tr('Save annotations to "{}" before closing?').format(self.filename)
-        answer = mb.question(
-            self,
-            self.tr('Save annotations?'),
-            msg,
-            mb.Save | mb.Discard | mb.Cancel,
-            mb.Save,
-        )
-        if answer == mb.Discard:
+        answer = QMB.question(self, self.tr('Save annotations?'), msg, QMB.Save | QMB.Discard | QMB.Cancel, QMB.Save)
+        if answer == QMB.Discard:
             return True
-        elif answer == mb.Save:
-            self.saveFile()
+        elif answer == QMB.Save:
+            self.__save_file()
             return True
-        else:  # answer == mb.Cancel
+        else:
             return False
 
     def __error_message(self, title, message):
@@ -1356,9 +1343,7 @@ class MainWindow(QMainWindow):
     def importDroppedImageFiles(self, imageFiles):
         extensions = [
             '.%s' % fmt.data().decode().lower()
-            for fmt in QImageReader.supportedImageFormats()
-        ]
-
+            for fmt in QImageReader.supportedImageFormats()]
         self.filename = None
         for file in imageFiles:
             if file in self.imageList or not file.lower().endswith(tuple(extensions)):
@@ -1374,19 +1359,17 @@ class MainWindow(QMainWindow):
             else:
                 item.setCheckState(Qt.Unchecked)
             self.file_list_widget.addItem(item)
-
         if len(self.imageList) > 1:
             self.action_open_next.setEnabled(True)
             self.action_open_prev.setEnabled(True)
-
         self.__open_next()
 
     def __open_image_dir_dialog(self) -> None:
-        if not self.mayContinue():
+        if not self.__may_continue():
             return
         dir_path = '.'
-        if self.lastOpenDir and osp.exists(self.lastOpenDir):
-            dir_path = self.lastOpenDir
+        if self.image_dir and osp.exists(self.image_dir):
+            dir_path = self.image_dir
         dir_path = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
@@ -1395,9 +1378,9 @@ class MainWindow(QMainWindow):
     def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None, load: bool = True) -> None:
         self.action_open_next.setEnabled(True)
         self.action_open_prev.setEnabled(True)
-        if not self.mayContinue() or not dirpath:
+        if not self.__may_continue() or not dirpath:
             return
-        self.lastOpenDir = dirpath
+        self.image_dir = dirpath
         self.filename = None
         self.file_list_widget.clear()
         filenames = self.__scan_all_images(dirpath)
@@ -1421,7 +1404,7 @@ class MainWindow(QMainWindow):
 
     def __current_file(self) -> str:
         filename = self.file_list_widget.currentItem().text()
-        return osp.join(self.lastOpenDir, filename)
+        return osp.join(self.image_dir, filename)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
         extensions = [

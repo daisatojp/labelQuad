@@ -18,7 +18,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', '-V', action='store_true', help='show version')
     parser.add_argument('--reset-config', action='store_true', help='reset qt config')
-    parser.add_argument('filename', nargs='?', help='image or label filename')
     parser.add_argument('--output', '-O', '-o')
     default_config_file = os.path.join(os.path.expanduser('~'), '.labelmerc')
     parser.add_argument('--config', dest='config', default=default_config_file)
@@ -110,7 +109,6 @@ def main():
     config_from_args = args.__dict__
     config_from_args.pop('version')
     reset_config = config_from_args.pop('reset_config')
-    filename = config_from_args.pop('filename')
     output = config_from_args.pop('output')
     config_file_or_yaml = config_from_args.pop('config')
     config = get_config(config_file_or_yaml, config_from_args)
@@ -142,7 +140,6 @@ def main():
     app.installTranslator(translator)
     win = MainWindow(
         config=config,
-        filename=filename,
         output_file=output_file,
         output_dir=output_dir,
     )
