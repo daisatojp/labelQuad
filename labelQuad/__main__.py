@@ -22,37 +22,8 @@ def main():
     default_config_file = os.path.join(os.path.expanduser('~'), '.labelmerc')
     parser.add_argument('--config', dest='config', default=default_config_file)
     parser.add_argument(
-        '--nodata',
-        dest='store_data',
-        action='store_false',
-        help='stop storing image data to JSON file',
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        '--autosave',
-        dest='auto_save',
-        action='store_true',
-        help='auto save',
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        '--nosortlabels',
-        dest='sort_labels',
-        action='store_false',
-        help='stop sorting labels',
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         '--flags',
         help='comma separated list of flags OR file containing flags',
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
-        '--labelflags',
-        dest='label_flags',
-        help=r'yaml string of label specific flags OR file containing json '
-        r'string of label specific flags (ex. {person-\d+: [male, tall], '
-        r'dog-\d+: [black, brown, white], .*: [occluded]})',  # NOQA
         default=argparse.SUPPRESS,
     )
     parser.add_argument(
