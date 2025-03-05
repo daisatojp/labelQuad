@@ -79,6 +79,7 @@ class MainWindow(QMainWindow):
             show_text_field=self._config['show_label_text_field'],
             completion=self._config['label_completion'],
             fit_to_content=self._config['fit_to_content'])
+        self.label_dialog.edit_group_id.setDisabled(True)
 
         self.label_list = LabelListWidget()
         self.label_list.itemSelectionChanged.connect(self.__label_selection_changed)
@@ -379,7 +380,7 @@ class MainWindow(QMainWindow):
             if self.output_dir:
                 label_file_without_path = osp.basename(label_file)
                 label_file = osp.join(self.output_dir, label_file_without_path)
-            self.__save_labels(label_file)
+            self.__save_label(label_file)
             return
         self.dirty = True
         self.action_save.setEnabled(True)
@@ -498,37 +499,29 @@ class MainWindow(QMainWindow):
 
         if len(items) == 1:
             edit_text = True
-            edit_group_id = True
             edit_description = True
         else:
             edit_text = all(item.shape().label == shape.label for item in items[1:])
-            edit_group_id = all(item.shape().group_id == shape.group_id for item in items[1:])
             edit_description = all(item.shape().description == shape.description for item in items[1:])
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(True)
             self.label_dialog.label_list.setDisabled(True)
-        if not edit_group_id:
-            self.label_dialog.edit_group_id.setDisabled(True)
         if not edit_description:
             self.label_dialog.editDescription.setDisabled(True)
 
-        text, _, group_id, description = self.label_dialog.popUp(
+        text, _, _, description = self.label_dialog.popUp(
             text=shape.label if edit_text else '',
             flags=None,
-            group_id=shape.group_id if edit_group_id else None,
             description=shape.description if edit_description else None)
 
         if not edit_text:
             self.label_dialog.edit.setDisabled(False)
             self.label_dialog.label_list.setDisabled(False)
-        if not edit_group_id:
-            self.label_dialog.edit_group_id.setDisabled(False)
         if not edit_description:
             self.label_dialog.editDescription.setDisabled(False)
 
         if text is None:
-            assert group_id is None
             assert description is None
             return
 
@@ -537,11 +530,9 @@ class MainWindow(QMainWindow):
             self._update_item(
                 item=item,
                 text=text if edit_text else None,
-                group_id=group_id if edit_group_id else None,
-                description=description if edit_description else None,
-            )
+                description=description if edit_description else None)
 
-    def _update_item(self, item, text, group_id, description):
+    def _update_item(self, item, text, description):
         if not self.validateLabel(text):
             self.__error_message(
                 self.tr('Invalid label'),
@@ -550,17 +541,11 @@ class MainWindow(QMainWindow):
         shape = item.shape()
         if text is not None:
             shape.label = text
-        if group_id is not None:
-            shape.group_id = group_id
         if description is not None:
             shape.description = description
         self._update_shape_color(shape)
-        if shape.group_id is None:
-            item.setText(
-                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                    html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
-        else:
-            item.setText('{} ({})'.format(shape.label, shape.group_id))
+        item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+            html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
         self.__set_dirty()
         if self.unique_label_list.findItemByLabel(shape.label) is None:
             item = self.unique_label_list.createItemFromLabel(shape.label)
@@ -597,10 +582,7 @@ class MainWindow(QMainWindow):
         self.action_edit.setEnabled(n_selected)
 
     def addLabel(self, shape):
-        if shape.group_id is None:
-            text = shape.label
-        else:
-            text = '{} ({})'.format(shape.label, shape.group_id)
+        text = shape.label
         label_list_item = LabelListWidgetItem(text, shape)
         self.label_list.addItem(label_list_item)
         if self.unique_label_list.findItemByLabel(shape.label) is None:
@@ -615,9 +597,7 @@ class MainWindow(QMainWindow):
         self._update_shape_color(shape)
         label_list_item.setText(
             '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                html.escape(text), *shape.fill_color.getRgb()[:3]
-            )
-        )
+                html.escape(text), *shape.fill_color.getRgb()[:3]))
 
     def _update_shape_color(self, shape):
         r, g, b = self._get_rgb_by_label(shape.label)
@@ -669,7 +649,6 @@ class MainWindow(QMainWindow):
             points = shape['points']
             shape_type = shape['shape_type']
             description = shape.get('description', '')
-            group_id = shape['group_id']
             other_data = shape['other_data']
 
             if not points:
@@ -679,7 +658,6 @@ class MainWindow(QMainWindow):
             shape = Shape(
                 label=label,
                 shape_type=shape_type,
-                group_id=group_id,
                 description=description,
                 mask=shape['mask'],
             )
@@ -692,7 +670,7 @@ class MainWindow(QMainWindow):
             s.append(shape)
         self.__load_shapes(s)
 
-    def __save_labels(self, filename: str) -> None:
+    def __save_label(self, filename: str) -> None:
         lf = LabelFile()
 
         def format_shape(s):
@@ -701,7 +679,6 @@ class MainWindow(QMainWindow):
                 dict(
                     label=s.label,
                     points=[(p.x(), p.y()) for p in s.points],
-                    group_id=s.group_id,
                     description=s.description,
                     shape_type=s.shape_type,
                     flags=None,
@@ -769,11 +746,10 @@ class MainWindow(QMainWindow):
         text = None
         if items:
             text = items[0].data(Qt.UserRole)
-        group_id = None
         description = ''
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text, _, group_id, description = self.label_dialog.popUp(text)
+            text, _, _, description = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text and not self.validateLabel(text):
@@ -785,7 +761,6 @@ class MainWindow(QMainWindow):
         if text:
             self.label_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
-            shape.group_id = group_id
             shape.description = description
             self.addLabel(shape)
             self.action_edit_mode.setEnabled(True)
@@ -874,7 +849,7 @@ class MainWindow(QMainWindow):
                 flag = item.checkState() == Qt.Unchecked
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
 
-    def __load_file(self, filename: str = None):
+    def __load_file(self, filename: Optional[str] = None) -> None:
         if (filename in self.imageList) and \
            (self.file_list_widget.currentRow() != self.imageList.index(filename)):
             self.file_list_widget.setCurrentRow(self.imageList.index(filename))
@@ -890,7 +865,6 @@ class MainWindow(QMainWindow):
             self.__error_message(
                 self.tr(f'Error opening file'),
                 self.tr(f'No such file: <b>{filename}</b>'))
-            return False
         self.__status(str(self.tr('Loading %s...')) % osp.basename(str(filename)))
         label_file = osp.splitext(filename)[0] + '.json'
         if self.output_dir:
@@ -909,7 +883,6 @@ class MainWindow(QMainWindow):
                     % (e, label_file),
                 )
                 self.__status(self.tr('Error reading %s') % label_file)
-                return False
             self.imageData = self.labelFile.imageData
             self.imagePath = osp.join(
                 osp.dirname(label_file),
@@ -974,7 +947,6 @@ class MainWindow(QMainWindow):
         self.__toggle_actions(True)
         self.canvas.setFocus()
         self.__status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
-        return True
 
     def __paint_canvas(self):
         assert not self.image.isNull(), 'cannot paint null image'
@@ -1041,7 +1013,7 @@ class MainWindow(QMainWindow):
            return
         filename = self.file_list_widget.currentItem().text()
         filename = osp.splitext(filename)[0] + '.json'
-        self.__save_labels(osp.join(self.annot_dir, filename))
+        self.__save_label(osp.join(self.annot_dir, filename))
 
     def __close_file(self, _value=False):
         if not self.__may_continue():
