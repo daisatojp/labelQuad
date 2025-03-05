@@ -168,8 +168,7 @@ class MainWindow(QMainWindow):
         self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.saveFile, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
-        self.action_save_as = self.__new_action(self.tr('&Save As'), slot=self.saveFileAs, shortcut=shortcuts['save_as'], icon='save-as', tip=self.tr('Save labels to a different file'), enabled=False)
-        self.action_delete_file = self.__new_action(self.tr('&Delete File'), slot=self.deleteFile, shortcut=shortcuts['delete_file'], icon='delete', tip=self.tr('Delete current label file'), enabled=False)
+        self.action_save_as = self.__new_action(self.tr('&Save As'), slot=self.__save_file_as, shortcut=shortcuts['save_as'], icon='save-as', tip=self.tr('Save labels to a different file'), enabled=False)
         self.action_change_output_dir = self.__new_action(self.tr('&Change Output Dir'), slot=self.changeOutputDirDialog, shortcut=shortcuts['save_to'], icon='open', tip=self.tr('Change where annotations are loaded/saved'))
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
@@ -255,7 +254,6 @@ class MainWindow(QMainWindow):
              self.action_save_auto,
              self.action_change_output_dir,
              self.action_close,
-             self.action_delete_file,
              None,
              self.action_quit))
         utils.addActions(self.menu_help, ())
@@ -304,7 +302,6 @@ class MainWindow(QMainWindow):
             self.action_open_prev,
             self.action_open_next,
             self.action_save,
-            self.action_delete_file,
             None,
             self.action_create_mode,
             self.action_edit_mode,
@@ -439,11 +436,6 @@ class MainWindow(QMainWindow):
         if self.filename is not None:
             title = '{} - {}'.format(title, self.filename)
         self.setWindowTitle(title)
-
-        if self.hasLabelFile():
-            self.action_delete_file.setEnabled(True)
-        else:
-            self.action_delete_file.setEnabled(False)
 
     def toggleActions(self, value: bool = True):
         self.zoom_widget.setEnabled(value)
@@ -1246,7 +1238,7 @@ class MainWindow(QMainWindow):
         else:
             self._saveFile(self.saveFileDialog())
 
-    def saveFileAs(self, _value=False):
+    def __save_file_as(self, _value=False):
         assert not self.image.isNull(), 'cannot save empty image'
         self._saveFile(self.saveFileDialog())
 
@@ -1302,26 +1294,6 @@ class MainWindow(QMainWindow):
 
         return label_file
 
-    def deleteFile(self):
-        mb = QMessageBox
-        msg = self.tr(
-            'You are about to permanently delete this label file, ' 'proceed anyway?'
-        )
-        answer = mb.warning(self, self.tr('Attention'), msg, mb.Yes | mb.No)
-        if answer != mb.Yes:
-            return
-
-        label_file = self.getLabelFile()
-        if osp.exists(label_file):
-            os.remove(label_file)
-            logger.info('Label file is removed: {}'.format(label_file))
-
-            item = self.file_list_widget.currentItem()
-            item.setCheckState(Qt.Unchecked)
-
-            self.resetState()
-
-    # Message Dialogs. #
     def hasLabels(self):
         if self.noShapes():
             self.errorMessage(
