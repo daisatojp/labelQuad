@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(__appname__)
 
         self.image_dir: Optional[str] = None
+        self.annot_dir: Optional[str] = None
         self.dirty: bool = False
         self._noSelectionSlot = False
         self._copied_shapes = None
@@ -159,13 +160,11 @@ class MainWindow(QMainWindow):
         shortcuts = self._config['shortcuts']
 
         self.action_quit = self.__new_action(self.tr('&Quit'), slot=self.close, shortcut=shortcuts['quit'], icon='quit', tip=self.tr('Quit application'))
-        self.action_open_image_dir = self.__new_action(self.tr('Open Image Dir'), slot=self.__open_image_dir_dialog, shortcut=shortcuts['open_dir'], icon='open', tip=self.tr('Open Image Dir'))
-        self.action_open = self.__new_action(self.tr('&Open\n'), slot=self.openFile, shortcut=shortcuts['open'], icon='open', tip=self.tr('Open image or label file'))
+        self.action_open_image_dir = self.__new_action(self.tr('Open Image Dir'), slot=self.__open_image_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
+        self.action_open_annot_dir = self.__new_action(self.tr('Open Annot Dir'), slot=self.__open_annot_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
         self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save_file, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
-        self.action_save_as = self.__new_action(self.tr('&Save As'), slot=self.__save_file_as, shortcut=shortcuts['save_as'], icon='save-as', tip=self.tr('Save labels to a different file'), enabled=False)
-        self.action_change_output_dir = self.__new_action(self.tr('&Change Output Dir'), slot=self.changeOutputDirDialog, shortcut=shortcuts['save_to'], icon='open', tip=self.tr('Change where annotations are loaded/saved'))
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
         self.action_close = self.__new_action(self.tr('&Close'), slot=self.closeFile, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
@@ -183,27 +182,18 @@ class MainWindow(QMainWindow):
         self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=functools.partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
 
         self.zoom_widget = ZoomWidget()
-        zoom = QWidgetAction(self)
+        zoom_label = QLabel(self.tr('Zoom'))
+        zoom_label.setAlignment(Qt.AlignCenter)
         zoom_box_layout = QVBoxLayout()
-        zoomLabel = QLabel(self.tr('Zoom'))
-        zoomLabel.setAlignment(Qt.AlignCenter)
-        zoom_box_layout.addWidget(zoomLabel)
+        zoom_box_layout.addWidget(zoom_label)
         zoom_box_layout.addWidget(self.zoom_widget)
-        zoom.setDefaultWidget(QWidget())
-        zoom.defaultWidget().setLayout(zoom_box_layout)
+        self.zoom = QWidgetAction(self)
+        self.zoom.setDefaultWidget(QWidget())
+        self.zoom.defaultWidget().setLayout(zoom_box_layout)
         self.zoom_widget.setWhatsThis(
-            str(
-                self.tr(
-                    'Zoom in or out of the image. Also accessible with '
-                    '{} and {} from the canvas.'
-                )
-            ).format(
-                utils.fmtShortcut(
-                    '{},{}'.format(shortcuts['zoom_in'], shortcuts['zoom_out'])
-                ),
-                utils.fmtShortcut(self.tr('Ctrl+Wheel')),
-            )
-        )
+            str(self.tr('Zoom in or out of the image. Also accessible with {} and {} from the canvas.'))
+            .format(utils.fmtShortcut('{},{}'.format(shortcuts['zoom_in'], shortcuts['zoom_out'])),
+                    utils.fmtShortcut(self.tr('Ctrl+Wheel'))))
         self.zoom_widget.setEnabled(False)
 
         self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=functools.partial(self.__add_zoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
@@ -241,14 +231,12 @@ class MainWindow(QMainWindow):
         utils.addActions(
             self.menu_file,
             (self.action_open_image_dir,
-             self.action_open,
+             self.action_open_annot_dir,
              self.action_open_next,
              self.action_open_prev,
              self.menu_recent_files,
              self.action_save,
-             self.action_save_as,
              self.action_save_auto,
-             self.action_change_output_dir,
              self.action_close,
              None,
              self.action_quit))
@@ -292,24 +280,7 @@ class MainWindow(QMainWindow):
              self.__new_action('&Move here', self.moveShape)))
 
         self.tools = self.toolbar('Tools')
-        self.actions_tool = (
-            self.action_open_image_dir,
-            self.action_open,
-            self.action_open_prev,
-            self.action_open_next,
-            self.action_save,
-            None,
-            self.action_create_mode,
-            self.action_edit_mode,
-            self.action_delete,
-            self.action_undo,
-            self.action_brightness_contrast,
-            None,
-            self.action_fit_window,
-            zoom,
-            None)
         self.actions_on_shapes_present = (
-            self.action_save_as,
             self.action_hide_all,
             self.action_show_all,
             self.action_toggle_all)
@@ -372,7 +343,23 @@ class MainWindow(QMainWindow):
 
     def populateModeActions(self):
         self.tools.clear()
-        utils.addActions(self.tools, self.actions_tool)
+        utils.addActions(
+            self.tools,
+            (self.action_open_image_dir,
+             self.action_open_annot_dir,
+             self.action_open_prev,
+             self.action_open_next,
+             self.action_save,
+             None,
+             self.action_create_mode,
+             self.action_edit_mode,
+             self.action_delete,
+             self.action_undo,
+             self.action_brightness_contrast,
+             None,
+             self.action_fit_window,
+             self.zoom,
+             None))
         self.canvas.menus[0].clear()
         utils.addActions(
             self.canvas.menus[0],
@@ -465,8 +452,6 @@ class MainWindow(QMainWindow):
             self.recentFiles.pop()
         self.recentFiles.insert(0, filename)
 
-    # Callbacks
-
     def undoShapeEdit(self):
         self.canvas.restoreShape()
         self.label_list.clear()
@@ -522,10 +507,8 @@ class MainWindow(QMainWindow):
         self.menu_label_list.exec_(self.label_list.mapToGlobal(point))
 
     def validateLabel(self, label):
-        # no validation
         if self._config['validate_label'] is None:
             return True
-
         for i in range(self.unique_label_list.count()):
             label_i = self.unique_label_list.item(i).data(Qt.UserRole)
             if self._config['validate_label'] in ['exact']:
@@ -1157,69 +1140,13 @@ class MainWindow(QMainWindow):
             self.__load_file(osp.join(self.image_dir, filename))
         self._config['keep_prev'] = keep_prev
 
-    def openFile(self, _value=False):
-        if not self.__may_continue():
-            return
-        path = osp.dirname(str(self.filename)) if self.filename else '.'
-        formats = [
-            '*.{}'.format(fmt.data().decode())
-            for fmt in QImageReader.supportedImageFormats()]
-        filters = self.tr('Image & Label files (%s)') % ' '.join(
-            formats + ['*%s' % LabelFile.suffix])
-        fileDialog = FileDialogPreview(self)
-        fileDialog.setFileMode(FileDialogPreview.ExistingFile)
-        fileDialog.setNameFilter(filters)
-        fileDialog.setWindowTitle(self.tr('%s - Choose Image or Label file') % __appname__)
-        fileDialog.setWindowFilePath(path)
-        fileDialog.setViewMode(FileDialogPreview.Detail)
-        if fileDialog.exec_():
-            fileName = fileDialog.selectedFiles()[0]
-            if fileName:
-                self.__load_file(fileName)
-
-    def changeOutputDirDialog(self, _value=False):
-        default_output_dir = self.output_dir
-        if default_output_dir is None and self.filename:
-            default_output_dir = osp.dirname(self.filename)
-        if default_output_dir is None:
-            default_output_dir = self.currentPath()
-
-        output_dir = QFileDialog.getExistingDirectory(
-            self,
-            self.tr('%s - Save/Load Annotations in Directory') % __appname__,
-            default_output_dir,
-            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks)
-        output_dir = str(output_dir)
-
-        if not output_dir:
-            return
-
-        self.output_dir = output_dir
-
-        self.statusBar().showMessage(self.tr(f'Change Annotations Dir. Annotations will be saved/loaded in {self.output_dir}'))
-        self.statusBar().show()
-
-        current_filename = self.filename
-        self.__import_dir_images(self.image_dir, load=False)
-
-        if current_filename in self.imageList:
-            # retain currently selected file
-            self.file_list_widget.setCurrentRow(self.imageList.index(current_filename))
-            self.file_list_widget.repaint()
-
-    def __save_file(self, _value=False):
-        assert not self.image.isNull(), 'cannot save empty image'
-        if self.labelFile:
-            self._saveFile(self.labelFile.filename)
-        elif self.output_file:
-            self._saveFile(self.output_file)
-            self.close()
-        else:
-            self._saveFile(self.saveFileDialog())
-
-    def __save_file_as(self, _value=False):
-        assert not self.image.isNull(), 'cannot save empty image'
-        self._saveFile(self.saveFileDialog())
+    def __save_file(self):
+        if (self.annot_dir is None) or \
+           (self.file_list_widget.currentRow() < 0):
+           return
+        filename = self.file_list_widget.currentItem().text()
+        filename = osp.splitext(filename)[0] + '.json'
+        self.saveLabels(osp.join(self.annot_dir, filename))
 
     def saveFileDialog(self):
         caption = self.tr('%s - Choose File') % __appname__
@@ -1263,7 +1190,6 @@ class MainWindow(QMainWindow):
         self.setClean()
         self.toggleActions(False)
         self.canvas.setEnabled(False)
-        self.action_save_as.setEnabled(False)
 
     def getLabelFile(self):
         if self.filename.lower().endswith('.json'):
@@ -1311,9 +1237,7 @@ class MainWindow(QMainWindow):
 
     def deleteSelectedShape(self):
         yes, no = QMessageBox.Yes, QMessageBox.No
-        msg = self.tr(
-            'You are about to permanently delete {} polygons, ' 'proceed anyway?'
-        ).format(len(self.canvas.selectedShapes))
+        msg = self.tr('You are about to permanently delete {} polygons, ' 'proceed anyway?').format(len(self.canvas.selectedShapes))
         if yes == QMessageBox.warning(self, self.tr('Attention'), msg, yes | no, yes):
             self.remLabels(self.canvas.deleteSelected())
             self.__set_dirty()
@@ -1371,9 +1295,19 @@ class MainWindow(QMainWindow):
         if self.image_dir and osp.exists(self.image_dir):
             dir_path = self.image_dir
         dir_path = str(QFileDialog.getExistingDirectory(
-            self, self.tr(f'{__appname__} - Open Directory'), dir_path,
+            self, self.tr(f'{__appname__} - Open Image Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
         self.__import_dir_images(dir_path)
+
+    def __open_annot_dir_dialog(self) -> None:
+        if not self.__may_continue():
+            return
+        dir_path = '.'
+        if self.image_dir and osp.exists(self.image_dir):
+            dir_path = self.image_dir
+        self.annot_dir = str(QFileDialog.getExistingDirectory(
+            self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
 
     def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None, load: bool = True) -> None:
         self.action_open_next.setEnabled(True)
