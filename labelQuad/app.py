@@ -168,8 +168,6 @@ class MainWindow(QMainWindow):
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
         self.action_close = self.__new_action(self.tr('&Close'), slot=self.__close_file, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
-        self.action_toggle_keep_prev_mode = self.__new_action(self.tr('Keep Previous Annotation'), slot=self.toggleKeepPrevMode, shortcut=shortcuts['toggle_keep_prev_mode'], icon=None, tip=self.tr('Toggle "keep previous annotation" mode'), checkable=True)
-        self.action_toggle_keep_prev_mode.setChecked(self._config['keep_prev'])
         self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
         self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
         self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_shape, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
@@ -378,8 +376,7 @@ class MainWindow(QMainWindow):
              self.action_undo,
              self.action_undo_last_point,
              None,
-             None,
-             self.action_toggle_keep_prev_mode))
+             None))
 
     def __set_dirty(self):
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
@@ -966,14 +963,8 @@ class MainWindow(QMainWindow):
             return False
         self.image = image
         self.filename = filename
-        if self._config['keep_prev']:
-            prev_shapes = self.canvas.shapes
         self.canvas.loadPixmap(QPixmap.fromImage(image))
-        if self._config['keep_prev'] and self.noShapes():
-            self.loadShapes(prev_shapes, replace=False)
-            self.__set_dirty()
-        else:
-            self.setClean()
+        self.setClean()
         self.canvas.setEnabled(True)
         is_initial_load = not self.zoom_values
         if self.filename in self.zoom_values:
@@ -1078,9 +1069,6 @@ class MainWindow(QMainWindow):
             self.__load_file(filename)
 
     def __open_next(self, _value=False, load=True):
-        keep_prev = self._config['keep_prev']
-        if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
-            self._config['keep_prev'] = True
         if not self.__may_continue():
             return
         if self.file_list_widget.count() < 0:
@@ -1095,12 +1083,8 @@ class MainWindow(QMainWindow):
         self.file_list_widget.setCurrentRow(row)
         if load:
             self.__load_file(self.__current_image_path())
-        self._config['keep_prev'] = keep_prev
 
     def __open_prev(self, _value=False):
-        keep_prev = self._config['keep_prev']
-        if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
-            self._config['keep_prev'] = True
         if not self.__may_continue():
             return
         if len(self.imageList) <= 0:
@@ -1112,7 +1096,6 @@ class MainWindow(QMainWindow):
             filename = self.imageList[currIndex - 1]
             if filename:
                 self.__load_file(filename)
-        self._config['keep_prev'] = keep_prev
 
     def __save_file(self):
         if (self.annot_dir is None) or \
@@ -1145,9 +1128,6 @@ class MainWindow(QMainWindow):
 
     def __error_message(self, title, message):
         return QMessageBox.critical(self, title, '<p><b>%s</b></p>%s' % (title, message))
-
-    def toggleKeepPrevMode(self):
-        self._config['keep_prev'] = not self._config['keep_prev']
 
     def __delete_selected_shape(self):
         yes, no = QMessageBox.Yes, QMessageBox.No
