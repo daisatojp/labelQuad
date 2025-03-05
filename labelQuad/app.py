@@ -506,7 +506,7 @@ class Canvas(QWidget):
         # Menus:
         # 0: right-click without selection and dragging of shapes
         # 1: right-click with selection and dragging of shapes
-        self.menus = (QMenu(), QMenu())
+        self.menus = [QMenu(), QMenu()]
         # Set widget options.
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.WheelFocus)
@@ -910,10 +910,13 @@ class Canvas(QWidget):
         if ev.button() == Qt.RightButton:
             menu = self.menus[len(self.selectedShapesCopy) > 0]
             self.restoreCursor()
-            if not menu.exec_(self.mapToGlobal(ev.pos())) and self.selectedShapesCopy:
-                # Cancel the move by deleting the shadow copy.
-                self.selectedShapesCopy = []
-                self.repaint()
+            if isinstance(menu, QMenu):
+                if not menu.exec_(self.mapToGlobal(ev.pos())) and self.selectedShapesCopy:
+                    # Cancel the move by deleting the shadow copy.
+                    self.selectedShapesCopy = []
+                    self.repaint()
+            else:
+                menu()
         elif ev.button() == Qt.LeftButton:
             if self.editing():
                 if (
@@ -1853,10 +1856,7 @@ class MainWindow(QMainWindow):
              self.action_delete,
              self.action_undo,
              self.action_undo_last_point))
-        utils.addActions(
-            self.canvas.menus[1],
-            (self.__new_action('&Copy here', self.__copy_quad),
-             self.__new_action('&Move here', self.__move_quad)))
+        self.canvas.menus[1] = self.__copy_quad
         utils.addActions(
             self.menu_edit,
             (self.action_create_mode,
