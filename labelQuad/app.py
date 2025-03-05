@@ -288,12 +288,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(str(self.tr('%s started.')) % __appname__)
         self.statusBar().show()
 
-        if output_file is not None and self._config['auto_save']:
-            logger.warn(
-                'If `auto_save` argument is True, `output_file` argument '
-                'is ignored and output filename is automatically '
-                'set as IMAGE_BASENAME.json.'
-            )
         self.output_file = output_file
         self.output_dir = output_dir
 
@@ -389,7 +383,7 @@ class MainWindow(QMainWindow):
 
     def __set_dirty(self):
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
-        if self._config['auto_save'] or self.action_save_auto.isChecked():
+        if self.action_save_auto.isChecked():
             label_file = osp.splitext(self.imagePath)[0] + '.json'
             if self.output_dir:
                 label_file_without_path = osp.basename(label_file)
@@ -909,8 +903,6 @@ class MainWindow(QMainWindow):
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
 
     def __load_file(self, filename: str = None):
-        """Load the specified file, or the last opened file if None."""
-        # changing file_list_widget loads file
         if (filename in self.imageList) and \
            (self.file_list_widget.currentRow() != self.imageList.index(filename)):
             self.file_list_widget.setCurrentRow(self.imageList.index(filename))
@@ -1085,23 +1077,6 @@ class MainWindow(QMainWindow):
         if self.__may_continue():
             self.__load_file(filename)
 
-    def __open_prev(self, _value=False):
-        keep_prev = self._config['keep_prev']
-        if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
-            self._config['keep_prev'] = True
-        if not self.__may_continue():
-            return
-        if len(self.imageList) <= 0:
-            return
-        if self.filename is None:
-            return
-        currIndex = self.imageList.index(self.filename)
-        if currIndex - 1 >= 0:
-            filename = self.imageList[currIndex - 1]
-            if filename:
-                self.__load_file(filename)
-        self._config['keep_prev'] = keep_prev
-
     def __open_next(self, _value=False, load=True):
         keep_prev = self._config['keep_prev']
         if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
@@ -1118,9 +1093,25 @@ class MainWindow(QMainWindow):
             if row + 1 < size:
                 row = row + 1
         self.file_list_widget.setCurrentRow(row)
-        filename = self.file_list_widget.item(row).text()
         if load:
-            self.__load_file(osp.join(self.image_dir, filename))
+            self.__load_file(self.__current_image_path())
+        self._config['keep_prev'] = keep_prev
+
+    def __open_prev(self, _value=False):
+        keep_prev = self._config['keep_prev']
+        if QApplication.keyboardModifiers() == (Qt.ControlModifier | Qt.ShiftModifier):
+            self._config['keep_prev'] = True
+        if not self.__may_continue():
+            return
+        if len(self.imageList) <= 0:
+            return
+        if self.filename is None:
+            return
+        currIndex = self.imageList.index(self.filename)
+        if currIndex - 1 >= 0:
+            filename = self.imageList[currIndex - 1]
+            if filename:
+                self.__load_file(filename)
         self._config['keep_prev'] = keep_prev
 
     def __save_file(self):
@@ -1154,9 +1145,6 @@ class MainWindow(QMainWindow):
 
     def __error_message(self, title, message):
         return QMessageBox.critical(self, title, '<p><b>%s</b></p>%s' % (title, message))
-
-    def currentPath(self):
-        return osp.dirname(str(self.filename)) if self.filename else '.'
 
     def toggleKeepPrevMode(self):
         self._config['keep_prev'] = not self._config['keep_prev']
@@ -1262,9 +1250,20 @@ class MainWindow(QMainWindow):
             self.file_list_widget.addItem(item)
         self.__open_next(load=load)
 
-    def __current_file(self) -> str:
+    def __current_image_path(self) -> Optional[str]:
+        if (self.file_list_widget.currentRow() < 0) or \
+           (self.image_dir is None):
+            return None
         filename = self.file_list_widget.currentItem().text()
         return osp.join(self.image_dir, filename)
+
+    def __current_annot_path(self) -> Optional[str]:
+        if (self.file_list_widget.currentRow() < 0) or \
+           (self.annot_dir is None):
+            return None
+        filename = self.file_list_widget.currentItem().text()
+        filename = osp.splitext(filename)[0] + '.json'
+        return osp.join(self.annot_dir, filename)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
         extensions = [
