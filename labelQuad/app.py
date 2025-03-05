@@ -81,16 +81,21 @@ class MainWindow(QMainWindow):
             fit_to_content=self._config['fit_to_content'])
         self.label_dialog.edit_group_id.setDisabled(True)
 
-        self.unique_label_list = UniqueLabelQListWidget()
+        self.label_list = UniqueLabelQListWidget()
         if self._config['labels']:
             for label in self._config['labels']:
-                item = self.unique_label_list.createItemFromLabel(label)
-                self.unique_label_list.addItem(item)
+                item = self.label_list.createItemFromLabel(label)
+                self.label_list.addItem(item)
                 rgb = self._get_rgb_by_label(label)
-                self.unique_label_list.setItemLabel(item, label, rgb)
-        self.label_dock = QDockWidget(self.tr('Label List'), self)
+                self.label_list.setItemLabel(item, label, rgb)
+        self.label_dock = QDockWidget(self.tr('Labels'), self)
         self.label_dock.setObjectName('Label List')
-        self.label_dock.setWidget(self.unique_label_list)
+        self.label_dock.setFeatures(
+            QDockWidget.DockWidgetFeatures() |
+            QDockWidget.DockWidgetClosable |
+            QDockWidget.DockWidgetFloatable |
+            QDockWidget.DockWidgetMovable)
+        self.label_dock.setWidget(self.label_list)
 
         self.quad_list = LabelListWidget()
         self.quad_list.itemSelectionChanged.connect(self.__label_selection_changed)
@@ -109,17 +114,22 @@ class MainWindow(QMainWindow):
         self.file_search = QLineEdit()
         self.file_search.setPlaceholderText(self.tr('Search Filename'))
         self.file_search.textChanged.connect(self.__file_search_changed)
-        self.file_list_widget = QListWidget()
-        self.file_list_widget.itemSelectionChanged.connect(self.__file_selection_changed)
+        self.file_list = QListWidget()
+        self.file_list.itemSelectionChanged.connect(self.__file_selection_changed)
         file_list_layout = QVBoxLayout()
         file_list_layout.setContentsMargins(0, 0, 0, 0)
         file_list_layout.setSpacing(0)
         file_list_layout.addWidget(self.file_search)
-        file_list_layout.addWidget(self.file_list_widget)
-        self.file_dock = QDockWidget(self.tr('File List'), self)
-        self.file_dock.setObjectName('Files')
+        file_list_layout.addWidget(self.file_list)
         file_list_widget = QWidget()
         file_list_widget.setLayout(file_list_layout)
+        self.file_dock = QDockWidget(self.tr('Files'), self)
+        self.file_dock.setObjectName('Files')
+        self.file_dock.setFeatures(
+            QDockWidget.DockWidgetFeatures() |
+            QDockWidget.DockWidgetClosable |
+            QDockWidget.DockWidgetFloatable |
+            QDockWidget.DockWidgetMovable)
         self.file_dock.setWidget(file_list_widget)
 
         self.setAcceptDrops(True)
@@ -145,18 +155,6 @@ class MainWindow(QMainWindow):
         self.canvas.drawingPolygon.connect(self.__toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll_area)
-
-        features = QDockWidget.DockWidgetFeatures()
-        for dock in ['label_dock', 'file_dock']:
-            if self._config[dock]['closable']:
-                features = features | QDockWidget.DockWidgetClosable
-            if self._config[dock]['floatable']:
-                features = features | QDockWidget.DockWidgetFloatable
-            if self._config[dock]['movable']:
-                features = features | QDockWidget.DockWidgetMovable
-            getattr(self, dock).setFeatures(features)
-            if self._config[dock]['show'] is False:
-                getattr(self, dock).setVisible(False)
 
         self.addDockWidget(Qt.RightDockWidgetArea, self.label_dock)
         self.addDockWidget(Qt.RightDockWidgetArea, self.quad_dock)
@@ -451,8 +449,8 @@ class MainWindow(QMainWindow):
 
     def updateFileMenu(self):
         current = None
-        if 0 <= self.file_list_widget.currentRow():
-            current = self.file_list_widget.currentItem().text()
+        if 0 <= self.file_list.currentRow():
+            current = self.file_list.currentItem().text()
 
         def exists(filename):
             return osp.exists(str(filename))
@@ -472,8 +470,8 @@ class MainWindow(QMainWindow):
     def validateLabel(self, label):
         if self._config['validate_label'] is None:
             return True
-        for i in range(self.unique_label_list.count()):
-            label_i = self.unique_label_list.item(i).data(Qt.UserRole)
+        for i in range(self.label_list.count()):
+            label_i = self.label_list.item(i).data(Qt.UserRole)
             if self._config['validate_label'] in ['exact']:
                 if label_i == label:
                     return True
@@ -540,11 +538,11 @@ class MainWindow(QMainWindow):
         item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
             html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
         self.__set_dirty()
-        if self.unique_label_list.findItemByLabel(shape.label) is None:
-            item = self.unique_label_list.createItemFromLabel(shape.label)
-            self.unique_label_list.addItem(item)
+        if self.label_list.findItemByLabel(shape.label) is None:
+            item = self.label_list.createItemFromLabel(shape.label)
+            self.label_list.addItem(item)
             rgb = self._get_rgb_by_label(shape.label)
-            self.unique_label_list.setItemLabel(item, shape.label, rgb)
+            self.label_list.setItemLabel(item, shape.label, rgb)
 
     def __file_search_changed(self) -> None:
         self.__import_dir_images(
@@ -578,11 +576,11 @@ class MainWindow(QMainWindow):
         text = shape.label
         label_list_item = LabelListWidgetItem(text, shape)
         self.quad_list.addItem(label_list_item)
-        if self.unique_label_list.findItemByLabel(shape.label) is None:
-            item = self.unique_label_list.createItemFromLabel(shape.label)
-            self.unique_label_list.addItem(item)
+        if self.label_list.findItemByLabel(shape.label) is None:
+            item = self.label_list.createItemFromLabel(shape.label)
+            self.label_list.addItem(item)
             rgb = self._get_rgb_by_label(shape.label)
-            self.unique_label_list.setItemLabel(item, shape.label, rgb)
+            self.label_list.setItemLabel(item, shape.label, rgb)
         self.label_dialog.addLabelHistory(shape.label)
         for action in self.actions_on_shapes_present:
             action.setEnabled(True)
@@ -603,13 +601,13 @@ class MainWindow(QMainWindow):
 
     def _get_rgb_by_label(self, label):
         if self._config['shape_color'] == 'auto':
-            item = self.unique_label_list.findItemByLabel(label)
+            item = self.label_list.findItemByLabel(label)
             if item is None:
-                item = self.unique_label_list.createItemFromLabel(label)
-                self.unique_label_list.addItem(item)
+                item = self.label_list.createItemFromLabel(label)
+                self.label_list.addItem(item)
                 rgb = self._get_rgb_by_label(label)
-                self.unique_label_list.setItemLabel(item, label, rgb)
-            label_id = self.unique_label_list.indexFromItem(item).row() + 1
+                self.label_list.setItemLabel(item, label, rgb)
+            label_id = self.label_list.indexFromItem(item).row() + 1
             label_id += self._config['shift_auto_shape_color']
             return LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)]
         elif (
@@ -696,7 +694,7 @@ class MainWindow(QMainWindow):
                 otherData=self.otherData,
             )
             self.labelFile = lf
-            items = self.file_list_widget.findItems(self.imagePath, Qt.MatchExactly)
+            items = self.file_list.findItems(self.imagePath, Qt.MatchExactly)
             if len(items) > 0:
                 if len(items) != 1:
                     raise RuntimeError('There are duplicate files.')
@@ -735,7 +733,7 @@ class MainWindow(QMainWindow):
         self.canvas.loadShapes([item.shape() for item in self.quad_list])
 
     def __new_shape(self) -> None:
-        items = self.unique_label_list.selectedItems()
+        items = self.label_list.selectedItems()
         text = None
         if items:
             text = items[0].data(Qt.UserRole)
@@ -844,9 +842,9 @@ class MainWindow(QMainWindow):
 
     def __load_file(self, filename: Optional[str] = None) -> None:
         if (filename in self.imageList) and \
-           (self.file_list_widget.currentRow() != self.imageList.index(filename)):
-            self.file_list_widget.setCurrentRow(self.imageList.index(filename))
-            self.file_list_widget.repaint()
+           (self.file_list.currentRow() != self.imageList.index(filename)):
+            self.file_list.setCurrentRow(self.imageList.index(filename))
+            self.file_list.repaint()
             return
 
         self.__reset_state()
@@ -974,16 +972,16 @@ class MainWindow(QMainWindow):
     def __open_next(self, _value=False, load=True):
         if not self.__may_continue():
             return
-        if self.file_list_widget.count() < 0:
+        if self.file_list.count() < 0:
             return
-        size = self.file_list_widget.count()
-        row = self.file_list_widget.currentRow()
+        size = self.file_list.count()
+        row = self.file_list.currentRow()
         if row == -1:
             row = 0
         else:
             if row + 1 < size:
                 row = row + 1
-        self.file_list_widget.setCurrentRow(row)
+        self.file_list.setCurrentRow(row)
         if load:
             self.__load_file(self.__current_image_path())
 
@@ -1002,9 +1000,9 @@ class MainWindow(QMainWindow):
 
     def __save_file(self):
         if (self.annot_dir is None) or \
-           (self.file_list_widget.currentRow() < 0):
+           (self.file_list.currentRow() < 0):
            return
-        filename = self.file_list_widget.currentItem().text()
+        filename = self.file_list.currentItem().text()
         filename = osp.splitext(filename)[0] + '.json'
         self.__save_label(osp.join(self.annot_dir, filename))
 
@@ -1053,8 +1051,8 @@ class MainWindow(QMainWindow):
     @property
     def imageList(self):
         lst = []
-        for i in range(self.file_list_widget.count()):
-            item = self.file_list_widget.item(i)
+        for i in range(self.file_list.count()):
+            item = self.file_list.item(i)
             lst.append(item.text())
         return lst
 
@@ -1086,7 +1084,7 @@ class MainWindow(QMainWindow):
             return
         self.image_dir = dirpath
         self.filename = None
-        self.file_list_widget.clear()
+        self.file_list.clear()
         filenames = self.__scan_all_images(dirpath)
         if pattern:
             try:
@@ -1103,21 +1101,21 @@ class MainWindow(QMainWindow):
                 item.setCheckState(Qt.Checked)
             else:
                 item.setCheckState(Qt.Unchecked)
-            self.file_list_widget.addItem(item)
+            self.file_list.addItem(item)
         self.__open_next(load=load)
 
     def __current_image_path(self) -> Optional[str]:
-        if (self.file_list_widget.currentRow() < 0) or \
+        if (self.file_list.currentRow() < 0) or \
            (self.image_dir is None):
             return None
-        filename = self.file_list_widget.currentItem().text()
+        filename = self.file_list.currentItem().text()
         return osp.join(self.image_dir, filename)
 
     def __current_annot_path(self) -> Optional[str]:
-        if (self.file_list_widget.currentRow() < 0) or \
+        if (self.file_list.currentRow() < 0) or \
            (self.annot_dir is None):
             return None
-        filename = self.file_list_widget.currentItem().text()
+        filename = self.file_list.currentItem().text()
         filename = osp.splitext(filename)[0] + '.json'
         return osp.join(self.annot_dir, filename)
 
