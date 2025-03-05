@@ -1585,16 +1585,6 @@ class MainWindow(QMainWindow):
     def __pop_label_list_menu(self, point):
         self.menu_label_list.exec_(self.quad_list.mapToGlobal(point))
 
-    def validateLabel(self, label):
-        if self._config['validate_label'] is None:
-            return True
-        for i in range(self.label_list.count()):
-            label_i = self.label_list.item(i).data(Qt.UserRole)
-            if self._config['validate_label'] in ['exact']:
-                if label_i == label:
-                    return True
-        return False
-
     def __edit_label(self) -> None:
         if not self.canvas.editing():
             return
@@ -1608,11 +1598,6 @@ class MainWindow(QMainWindow):
         if text is None:
             return
         self.canvas.storeShapes()
-        if not self.validateLabel(text):
-            self.__error_message(
-                self.tr('Invalid label'),
-                self.tr('Invalid label "{}" with validation type "{}"').format(text, self._config['validate_label']))
-            return
         quad.label = text
         self._update_shape_color(quad)
         item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
@@ -1742,12 +1727,6 @@ class MainWindow(QMainWindow):
             text, _, _, _ = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
-        if text and not self.validateLabel(text):
-            self.__error_message(
-                self.tr('Invalid label'),
-                self.tr('Invalid label "{}" with validation type "{}"').format(
-                    text, self._config['validate_label']))
-            text = ''
         if text:
             self.quad_list.clearSelection()
             shape = self.canvas.setLastLabel(text, None)
