@@ -541,7 +541,7 @@ class MainWindow(QMainWindow):
     def __file_selection_changed(self) -> None:
         if not self.__may_continue():
             return
-        self.__load_file(self.__current_image_path())
+        self.__load_file()
 
     def __shape_selection_changed(self, selected_shapes):
         self._noSelectionSlot = True
@@ -810,49 +810,23 @@ class MainWindow(QMainWindow):
                 flag = item.checkState() == Qt.Unchecked
             item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
 
-    def __load_file(self, filename: Optional[str] = None) -> None:
-        if (filename in self.imageList) and \
-           (self.file_list.currentRow() != self.imageList.index(filename)):
-            self.file_list.setCurrentRow(self.imageList.index(filename))
-            self.file_list.repaint()
+    def __load_file(self) -> None:
+        image_path = self.__current_image_path()
+        annot_path = self.__current_annot_path()
+        if image_path is None:
             return
-
         self.__reset_state()
         self.canvas.setEnabled(False)
-        if filename is None:
-            filename = self.settings.value('filename', '')
-        filename = str(filename)
-        if not QFile.exists(filename):
+        if not QFile.exists(image_path):
             self.__error_message(
                 self.tr(f'Error opening file'),
-                self.tr(f'No such file: <b>{filename}</b>'))
-        self.__status(str(self.tr('Loading %s...')) % osp.basename(str(filename)))
-        label_file = osp.splitext(filename)[0] + '.json'
-        if self.output_dir:
-            label_file_without_path = osp.basename(label_file)
-            label_file = osp.join(self.output_dir, label_file_without_path)
-        if QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-            try:
-                self.labelFile = LabelFile(label_file)
-            except LabelFileError as e:
-                self.__error_message(
-                    self.tr('Error opening file'),
-                    self.tr(
-                        '<p><b>%s</b></p>'
-                        '<p>Make sure <i>%s</i> is a valid label file.'
-                    )
-                    % (e, label_file),
-                )
-                self.__status(self.tr('Error reading %s') % label_file)
-            self.imageData = self.labelFile.imageData
-            self.imagePath = osp.join(osp.dirname(label_file), self.labelFile.imagePath)
-        else:
-            self.imageData = LabelFile.load_image_file(filename)
-            if self.imageData:
-                self.imagePath = filename
-            self.labelFile = None
+                self.tr(f'No such file: <b>{image_path}</b>'))
+        self.__status(self.tr(f'Loading {image_path}...'))
+        self.imageData = LabelFile.load_image_file(image_path)
+        if self.imageData:
+            self.imagePath = image_path
+        self.labelFile = None
         image = QImage.fromData(self.imageData)
-
         if image.isNull():
             formats = [
                 '*.{}'.format(fmt.data().decode())
@@ -863,11 +837,11 @@ class MainWindow(QMainWindow):
                 self.tr(
                     '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
                     'Supported image formats: {1}</p>'
-                ).format(filename, ','.join(formats)))
-            self.__status(self.tr('Error reading %s') % filename)
+                ).format(image_path, ','.join(formats)))
+            self.__status(self.tr('Error reading %s') % image_path)
             return False
         self.image = image
-        self.filename = filename
+        self.filename = image_path
         self.canvas.loadPixmap(QPixmap.fromImage(image))
         self.__set_clean()
         self.canvas.setEnabled(True)
@@ -903,7 +877,7 @@ class MainWindow(QMainWindow):
         self.__add_recent_file(self.filename)
         self.__toggle_actions(True)
         self.canvas.setFocus()
-        self.__status(str(self.tr('Loaded %s')) % osp.basename(str(filename)))
+        self.__status(self.tr(f'Loaded {image_path}'))
 
     def __paint_canvas(self) -> None:
         assert not self.image.isNull(), 'cannot paint null image'
@@ -931,9 +905,9 @@ class MainWindow(QMainWindow):
         w = self.centralWidget().width() - 2.0
         return w / self.canvas.pixmap.width()
 
-    def __load_recent(self, filename):
+    def __load_recent(self, filename: str) -> None:
         if self.__may_continue():
-            self.__load_file(filename)
+            self.__load_file()
 
     def __open_next(self) -> None:
         if not self.__may_continue():
@@ -948,7 +922,7 @@ class MainWindow(QMainWindow):
             if row + 1 < size:
                 row = row + 1
         self.file_list.setCurrentRow(row)
-        self.__load_file(self.__current_image_path())
+        self.__load_file()
 
     def __open_prev(self) -> None:
         if not self.__may_continue():
@@ -957,7 +931,7 @@ class MainWindow(QMainWindow):
         if row < 1:
             return
         self.file_list.setCurrentRow(row - 1)
-        self.__load_file(self.__current_image_path())
+        self.__load_file()
 
     def __save_file(self):
         if (self.annot_dir is None) or \
@@ -967,7 +941,7 @@ class MainWindow(QMainWindow):
         filename = osp.splitext(filename)[0] + '.json'
         self.__save_label(osp.join(self.annot_dir, filename))
 
-    def __close_file(self, _value=False):
+    def __close_file(self) -> None:
         if not self.__may_continue():
             return
         self.__reset_state()
@@ -975,7 +949,7 @@ class MainWindow(QMainWindow):
         self.__toggle_actions(False)
         self.canvas.setEnabled(False)
 
-    def __may_continue(self):
+    def __may_continue(self) -> None:
         if not self.dirty:
             return True
         msg = self.tr('Save annotations to "{}" before closing?').format(self.filename)
@@ -988,8 +962,8 @@ class MainWindow(QMainWindow):
         else:
             return False
 
-    def __error_message(self, title, message):
-        return QMessageBox.critical(self, title, '<p><b>%s</b></p>%s' % (title, message))
+    def __error_message(self, title: str, message: str) -> None:
+        return QMessageBox.critical(self, title, f'<p><b>{title}</b></p>{message}')
 
     def __delete_selected_shape(self) -> None:
         self.__remove_quads(self.canvas.deleteSelected())
