@@ -1,4 +1,4 @@
-import functools
+from functools import partial
 import html
 import math
 import os
@@ -167,19 +167,19 @@ class MainWindow(QMainWindow):
         self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save_file, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
-        self.action_close = self.__new_action(self.tr('&Close'), slot=self.closeFile, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
+        self.action_close = self.__new_action(self.tr('&Close'), slot=self.__close_file, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
         self.action_toggle_keep_prev_mode = self.__new_action(self.tr('Keep Previous Annotation'), slot=self.toggleKeepPrevMode, shortcut=shortcuts['toggle_keep_prev_mode'], icon=None, tip=self.tr('Toggle "keep previous annotation" mode'), checkable=True)
         self.action_toggle_keep_prev_mode.setChecked(self._config['keep_prev'])
-        self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=lambda: self.toggleDrawMode(False, createMode='polygon'), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
-        self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.setEditMode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
-        self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.deleteSelectedShape, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
+        self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
+        self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
+        self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_shape, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
         self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.copySelectedShape, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
         self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.pasteSelectedShape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
         self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
         self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.undoShapeEdit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
-        self.action_hide_all = self.__new_action(self.tr('&Hide\nPolygons'), slot=functools.partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all polygons'), enabled=False)
-        self.action_show_all = self.__new_action(self.tr('&Show\nPolygons'), slot=functools.partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all polygons'), enabled=False)
-        self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=functools.partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
+        self.action_hide_all = self.__new_action(self.tr('&Hide\nPolygons'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all polygons'), enabled=False)
+        self.action_show_all = self.__new_action(self.tr('&Show\nPolygons'), slot=partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all polygons'), enabled=False)
+        self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
 
         self.zoom_widget = ZoomWidget()
         zoom_label = QLabel(self.tr('Zoom'))
@@ -196,9 +196,9 @@ class MainWindow(QMainWindow):
                     utils.fmtShortcut(self.tr('Ctrl+Wheel'))))
         self.zoom_widget.setEnabled(False)
 
-        self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=functools.partial(self.__add_zoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
-        self.action_zoom_out = self.__new_action(self.tr('&Zoom Out'), slot=functools.partial(self.__add_zoom, 0.9), shortcut=shortcuts['zoom_out'], icon='zoom-out', tip=self.tr('Decrease zoom level'), enabled=False)
-        self.action_zoom_org = self.__new_action(self.tr('&Original size'), slot=functools.partial(self.__set_zoom, 100), shortcut=shortcuts['zoom_to_original'], icon='zoom', tip=self.tr('Zoom to original size'), enabled=False)
+        self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=partial(self.__add_zoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
+        self.action_zoom_out = self.__new_action(self.tr('&Zoom Out'), slot=partial(self.__add_zoom, 0.9), shortcut=shortcuts['zoom_out'], icon='zoom-out', tip=self.tr('Decrease zoom level'), enabled=False)
+        self.action_zoom_org = self.__new_action(self.tr('&Original size'), slot=partial(self.__set_zoom, 100), shortcut=shortcuts['zoom_to_original'], icon='zoom', tip=self.tr('Zoom to original size'), enabled=False)
         self.action_keep_prev_scale = self.__new_action(self.tr('&Keep Previous Scale'), slot=self.__enable_keep_prev_scale, tip=self.tr('Keep previous zoom scale'), checkable=True, checked=self._config['keep_prev_scale'], enabled=True)
         self.action_fit_window = self.__new_action(self.tr('&Fit Window'), slot=self.__set_fit_window, shortcut=shortcuts['fit_window'], icon='fit-window', tip=self.tr('Zoom follows window size'), checkable=True, enabled=False)
         self.action_fit_width = self.__new_action(self.tr('Fit &Width'), slot=self.__set_fit_width, shortcut=shortcuts['fit_width'], icon='fit-width', tip=self.tr('Zoom follows window width'), checkable=True, enabled=False)
@@ -276,8 +276,8 @@ class MainWindow(QMainWindow):
              self.action_undo_last_point))
         utils.addActions(
             self.canvas.menus[1],
-            (self.__new_action('&Copy here', self.copyShape),
-             self.__new_action('&Move here', self.moveShape)))
+            (self.__new_action('&Copy here', self.__copy_shape),
+             self.__new_action('&Move here', self.__move_shape)))
 
         self.tools = self.toolbar('Tools')
         self.actions_on_shapes_present = (
@@ -468,23 +468,14 @@ class MainWindow(QMainWindow):
         self.action_undo.setEnabled(not drawing)
         self.action_delete.setEnabled(not drawing)
 
-    def toggleDrawMode(self, edit=True, createMode='polygon'):
-        draw_actions = {
-            'polygon': self.action_create_mode,
-        }
-
+    def __toggle_draw_mode(self, edit: bool = True) -> None:
         self.canvas.setEditing(edit)
-        self.canvas.createMode = createMode
-        if edit:
-            for draw_action in draw_actions.values():
-                draw_action.setEnabled(True)
-        else:
-            for draw_mode, draw_action in draw_actions.items():
-                draw_action.setEnabled(createMode != draw_mode)
+        self.canvas.createMode = 'polygon'
+        self.action_create_mode.setEnabled(edit)
         self.action_edit_mode.setEnabled(not edit)
 
-    def setEditMode(self):
-        self.toggleDrawMode(True)
+    def __set_edit_mode(self):
+        self.__toggle_draw_mode(True)
 
     def updateFileMenu(self):
         current = None
@@ -500,7 +491,7 @@ class MainWindow(QMainWindow):
         for i, f in enumerate(files):
             icon = utils.newIcon('labels')
             action = QAction(icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
-            action.triggered.connect(functools.partial(self.__load_recent, f))
+            action.triggered.connect(partial(self.__load_recent, f))
             menu.addAction(action)
 
     def popLabelListMenu(self, point):
@@ -581,28 +572,20 @@ class MainWindow(QMainWindow):
         if not self.validateLabel(text):
             self.__error_message(
                 self.tr('Invalid label'),
-                self.tr('Invalid label "{}" with validation type "{}"').format(
-                    text, self._config['validate_label']
-                ),
-            )
+                self.tr('Invalid label "{}" with validation type "{}"').format(text, self._config['validate_label']))
             return
-
         shape = item.shape()
-
         if text is not None:
             shape.label = text
         if group_id is not None:
             shape.group_id = group_id
         if description is not None:
             shape.description = description
-
         self._update_shape_color(shape)
         if shape.group_id is None:
             item.setText(
                 '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                    html.escape(shape.label), *shape.fill_color.getRgb()[:3]
-                )
-            )
+                    html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
         else:
             item.setText('{} ({})'.format(shape.label, shape.group_id))
         self.__set_dirty()
@@ -1148,7 +1131,7 @@ class MainWindow(QMainWindow):
         filename = osp.splitext(filename)[0] + '.json'
         self.saveLabels(osp.join(self.annot_dir, filename))
 
-    def closeFile(self, _value=False):
+    def __close_file(self, _value=False):
         if not self.__may_continue():
             return
         self.resetState()
@@ -1178,7 +1161,7 @@ class MainWindow(QMainWindow):
     def toggleKeepPrevMode(self):
         self._config['keep_prev'] = not self._config['keep_prev']
 
-    def deleteSelectedShape(self):
+    def __delete_selected_shape(self):
         yes, no = QMessageBox.Yes, QMessageBox.No
         msg = self.tr('You are about to permanently delete {} polygons, ' 'proceed anyway?').format(len(self.canvas.selectedShapes))
         if yes == QMessageBox.warning(self, self.tr('Attention'), msg, yes | no, yes):
@@ -1188,14 +1171,14 @@ class MainWindow(QMainWindow):
                 for action in self.actions_on_shapes_present:
                     action.setEnabled(False)
 
-    def copyShape(self):
+    def __copy_shape(self):
         self.canvas.endMove(copy=True)
         for shape in self.canvas.selectedShapes:
             self.addLabel(shape)
         self.label_list.clearSelection()
         self.__set_dirty()
 
-    def moveShape(self):
+    def __move_shape(self):
         self.canvas.endMove(copy=False)
         self.__set_dirty()
 
