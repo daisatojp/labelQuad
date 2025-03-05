@@ -1,5 +1,6 @@
 from functools import partial
 import html
+import json
 import math
 import os
 import os.path as osp
@@ -392,6 +393,29 @@ class MainWindow(QMainWindow):
         self.image = image
         self.image_path = image_path
         self.image_data = image_data
+
+        # with open(annot_path, 'r') as f:
+        #     j = json.load(f)
+        # quads = []
+        # for shape in shapes:
+        #     label = shape['label']
+        #     points = shape['points']
+        #     shape_type = shape['shape_type']
+        #     other_data = shape['other_data']
+
+        #     if not points:
+        #         continue
+
+        #     shape = Shape(label=label, shape_type=shape_type)
+        #     for x, y in points:
+        #         shape.addPoint(QPointF(x, y))
+        #     shape.close()
+
+        #     shape.other_data = other_data
+
+        #     s.append(shape)
+        # self.__load_shapes(s)
+
         self.canvas.loadPixmap(QPixmap.fromImage(self.image))
         self.__set_clean()
         self.canvas.setEnabled(True)
@@ -562,58 +586,31 @@ class MainWindow(QMainWindow):
     def __edit_label(self) -> None:
         if not self.canvas.editing():
             return
-
         items = self.quad_list.selectedItems()
-        if not items:
+        if len(items) <= 0:
             logger.warning('No label is selected, so cannot edit label.')
             return
-
-        shape = items[0].shape()
-
-        if len(items) == 1:
-            edit_text = True
-        else:
-            edit_text = all(item.shape().label == shape.label for item in items[1:])
-
-        if not edit_text:
-            self.label_dialog.edit.setDisabled(True)
-            self.label_dialog.label_list.setDisabled(True)
-
-        text, _, _, _ = self.label_dialog.popUp(
-            text=shape.label if edit_text else '',
-            flags=None)
-
-        if not edit_text:
-            self.label_dialog.edit.setDisabled(False)
-            self.label_dialog.label_list.setDisabled(False)
-
+        item = items[0]
+        quad: Shape = items[0].shape()
+        text, _, _, _ = self.label_dialog.popUp(text=quad.label)
         if text is None:
             return
-
         self.canvas.storeShapes()
-        for item in items:
-            self._update_item(
-                item=item,
-                text=text if edit_text else None)
-
-    def _update_item(self, item, text) -> None:
         if not self.validateLabel(text):
             self.__error_message(
                 self.tr('Invalid label'),
                 self.tr('Invalid label "{}" with validation type "{}"').format(text, self._config['validate_label']))
             return
-        shape = item.shape()
-        if text is not None:
-            shape.label = text
-        self._update_shape_color(shape)
+        quad.label = text
+        self._update_shape_color(quad)
         item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-            html.escape(shape.label), *shape.fill_color.getRgb()[:3]))
+            html.escape(quad.label), *quad.fill_color.getRgb()[:3]))
         self.__set_dirty()
-        if self.label_list.findItemByLabel(shape.label) is None:
-            item = self.label_list.createItemFromLabel(shape.label)
+        if self.label_list.findItemByLabel(quad.label) is None:
+            item = self.label_list.createItemFromLabel(quad.label)
             self.label_list.addItem(item)
-            rgb = self.__get_rgb_by_label(shape.label)
-            self.label_list.setItemLabel(item, shape.label, rgb)
+            rgb = self.__get_rgb_by_label(quad.label)
+            self.label_list.setItemLabel(item, quad.label, rgb)
 
     def __file_search_changed(self) -> None:
         self.__import_dir_images(
@@ -643,23 +640,22 @@ class MainWindow(QMainWindow):
         self.action_copy.setEnabled(n_selected)
         self.action_edit.setEnabled(n_selected)
 
-    def __add_label(self, shape) -> None:
-        text = shape.label
-        label_list_item = LabelListWidgetItem(text, shape)
+    def __add_label(self, quad: Shape) -> None:
+        text = quad.label
+        label_list_item = LabelListWidgetItem(text, quad)
         self.quad_list.addItem(label_list_item)
-        if self.label_list.findItemByLabel(shape.label) is None:
-            item = self.label_list.createItemFromLabel(shape.label)
+        if self.label_list.findItemByLabel(quad.label) is None:
+            item = self.label_list.createItemFromLabel(quad.label)
             self.label_list.addItem(item)
-            rgb = self.__get_rgb_by_label(shape.label)
-            self.label_list.setItemLabel(item, shape.label, rgb)
-        self.label_dialog.addLabelHistory(shape.label)
+            rgb = self.__get_rgb_by_label(quad.label)
+            self.label_list.setItemLabel(item, quad.label, rgb)
+        self.label_dialog.addLabelHistory(quad.label)
         for action in self.actions_on_shapes_present:
             action.setEnabled(True)
-
-        self._update_shape_color(shape)
+        self._update_shape_color(quad)
         label_list_item.setText(
             '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                html.escape(text), *shape.fill_color.getRgb()[:3]))
+                html.escape(text), *quad.fill_color.getRgb()[:3]))
 
     def _update_shape_color(self, shape):
         r, g, b = self.__get_rgb_by_label(shape.label)
@@ -688,27 +684,6 @@ class MainWindow(QMainWindow):
         for quad in quads:
             item = self.quad_list.findItemByShape(quad)
             self.quad_list.removeItem(item)
-
-    def loadLabels(self, shapes) -> None:
-        s = []
-        for shape in shapes:
-            label = shape['label']
-            points = shape['points']
-            shape_type = shape['shape_type']
-            other_data = shape['other_data']
-
-            if not points:
-                continue
-
-            shape = Shape(label=label, shape_type=shape_type)
-            for x, y in points:
-                shape.addPoint(QPointF(x, y))
-            shape.close()
-
-            shape.other_data = other_data
-
-            s.append(shape)
-        self.__load_shapes(s)
 
     def __paste_selected_shape(self) -> None:
         self.__load_shapes(self._copied_shapes, replace=False)
