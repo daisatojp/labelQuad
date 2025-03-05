@@ -343,11 +343,6 @@ class MainWindow(QMainWindow):
             Qt.Horizontal: {},
             Qt.Vertical: {}}
 
-        if filename is not None and osp.isdir(filename):
-            self.__import_dir_images(filename, load=False)
-        else:
-            self.filename = filename
-
         if config['file_search']:
             self.file_search.setText(config['file_search'])
             self.__file_search_changed()
@@ -362,9 +357,6 @@ class MainWindow(QMainWindow):
         self.restoreState(state)
 
         self.updateFileMenu()
-
-        if self.filename is not None:
-            self.queueEvent(functools.partial(self.__load_file, self.filename))
 
         self.zoom_widget.valueChanged.connect(self.paintCanvas)
 
@@ -514,7 +506,9 @@ class MainWindow(QMainWindow):
         self.toggleDrawMode(True)
 
     def updateFileMenu(self):
-        current = self.filename
+        current = None
+        if 0 <= self.file_list_widget.currentRow():
+            current = self.file_list_widget.currentItem().text()
 
         def exists(filename):
             return osp.exists(str(filename))
@@ -525,7 +519,7 @@ class MainWindow(QMainWindow):
         for i, f in enumerate(files):
             icon = utils.newIcon('labels')
             action = QAction(icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
-            action.triggered.connect(functools.partial(self.loadRecent, f))
+            action.triggered.connect(functools.partial(self.__load_recent, f))
             menu.addAction(action)
 
     def popLabelListMenu(self, point):
@@ -606,7 +600,7 @@ class MainWindow(QMainWindow):
 
     def _update_item(self, item, text, group_id, description):
         if not self.validateLabel(text):
-            self.errorMessage(
+            self.__error_message(
                 self.tr('Invalid label'),
                 self.tr('Invalid label "{}" with validation type "{}"').format(
                     text, self._config['validate_label']
@@ -646,17 +640,12 @@ class MainWindow(QMainWindow):
             load=False)
 
     def __file_selection_changed(self) -> None:
-        items = self.file_list_widget.selectedItems()
-        if not items:
+        if self.file_list_widget.currentRow() < 0:
             return
-        item = items[0]
         if not self.mayContinue():
             return
-        currIndex = self.imageList.index(str(item.text()))
-        if currIndex < len(self.imageList):
-            filename = self.imageList[currIndex]
-            if filename:
-                self.__load_file(filename)
+        file_path = osp.join(self.lastOpenDir, self.file_list_widget.currentItem().text())
+        self.__load_file(file_path)
 
     def shapeSelectionChanged(self, selected_shapes):
         self._noSelectionSlot = True
@@ -814,7 +803,7 @@ class MainWindow(QMainWindow):
                 items[0].setCheckState(Qt.Checked)
             return True
         except LabelFileError as e:
-            self.errorMessage(
+            self.__error_message(
                 self.tr('Error saving label data'), self.tr('<b>%s</b>') % e
             )
             return False
@@ -860,7 +849,7 @@ class MainWindow(QMainWindow):
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text and not self.validateLabel(text):
-            self.errorMessage(
+            self.__error_message(
                 self.tr('Invalid label'),
                 self.tr('Invalid label "{}" with validation type "{}"').format(
                     text, self._config['validate_label']))
@@ -972,12 +961,10 @@ class MainWindow(QMainWindow):
             filename = self.settings.value('filename', '')
         filename = str(filename)
         if not QFile.exists(filename):
-            self.errorMessage(
-                self.tr('Error opening file'),
-                self.tr('No such file: <b>%s</b>') % filename,
-            )
+            self.__error_message(
+                self.tr(f'Error opening file'),
+                self.tr(f'No such file: <b>{filename}</b>'))
             return False
-        # assumes same name, but json extension
         self.status(str(self.tr('Loading %s...')) % osp.basename(str(filename)))
         label_file = osp.splitext(filename)[0] + '.json'
         if self.output_dir:
@@ -987,7 +974,7 @@ class MainWindow(QMainWindow):
             try:
                 self.labelFile = LabelFile(label_file)
             except LabelFileError as e:
-                self.errorMessage(
+                self.__error_message(
                     self.tr('Error opening file'),
                     self.tr(
                         '<p><b>%s</b></p>'
@@ -1015,7 +1002,7 @@ class MainWindow(QMainWindow):
                 '*.{}'.format(fmt.data().decode())
                 for fmt in QImageReader.supportedImageFormats()
             ]
-            self.errorMessage(
+            self.__error_message(
                 self.tr('Error opening file'),
                 self.tr(
                     '<p>Make sure <i>{0}</i> is a valid image file.<br/>'
@@ -1132,7 +1119,7 @@ class MainWindow(QMainWindow):
         items = [i.toLocalFile() for i in event.mimeData().urls()]
         self.importDroppedImageFiles(items)
 
-    def loadRecent(self, filename):
+    def __load_recent(self, filename):
         if self.mayContinue():
             self.__load_file(filename)
 
@@ -1159,20 +1146,19 @@ class MainWindow(QMainWindow):
             self._config['keep_prev'] = True
         if not self.mayContinue():
             return
-        if len(self.imageList) <= 0:
+        if self.file_list_widget.count() < 0:
             return
-        filename = None
-        if self.filename is None:
-            filename = self.imageList[0]
+        size = self.file_list_widget.count()
+        row = self.file_list_widget.currentRow()
+        if row == -1:
+            row = 0
         else:
-            currIndex = self.imageList.index(self.filename)
-            if currIndex + 1 < len(self.imageList):
-                filename = self.imageList[currIndex + 1]
-            else:
-                filename = self.imageList[-1]
-        self.filename = filename
-        if self.filename and load:
-            self.__load_file(self.filename)
+            if row + 1 < size:
+                row = row + 1
+        self.file_list_widget.setCurrentRow(row)
+        filename = self.file_list_widget.item(row).text()
+        if load:
+            self.__load_file(osp.join(self.lastOpenDir, filename))
         self._config['keep_prev'] = keep_prev
 
     def openFile(self, _value=False):
@@ -1214,9 +1200,7 @@ class MainWindow(QMainWindow):
 
         self.output_dir = output_dir
 
-        self.statusBar().showMessage(
-            self.tr('%s . Annotations will be saved/loaded in %s')
-            % ('Change Annotations Dir', self.output_dir))
+        self.statusBar().showMessage(self.tr(f'Change Annotations Dir. Annotations will be saved/loaded in {self.output_dir}'))
         self.statusBar().show()
 
         current_filename = self.filename
@@ -1296,10 +1280,9 @@ class MainWindow(QMainWindow):
 
     def hasLabels(self):
         if self.noShapes():
-            self.errorMessage(
+            self.__error_message(
                 'No objects labeled',
-                'You must label at least one object to save the file.',
-            )
+                'You must label at least one object to save the file.')
             return False
         return True
 
@@ -1330,7 +1313,7 @@ class MainWindow(QMainWindow):
         else:  # answer == mb.Cancel
             return False
 
-    def errorMessage(self, title, message):
+    def __error_message(self, title, message):
         return QMessageBox.critical(self, title, '<p><b>%s</b></p>%s' % (title, message))
 
     def currentPath(self):
@@ -1404,12 +1387,8 @@ class MainWindow(QMainWindow):
         dir_path = '.'
         if self.lastOpenDir and osp.exists(self.lastOpenDir):
             dir_path = self.lastOpenDir
-        else:
-            dir_path = osp.dirname(self.filename) if self.filename else '.'
         dir_path = str(QFileDialog.getExistingDirectory(
-            self,
-            self.tr('%s - Open Directory') % __appname__,
-            dir_path,
+            self, self.tr(f'{__appname__} - Open Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
         self.__import_dir_images(dir_path)
 
@@ -1430,9 +1409,8 @@ class MainWindow(QMainWindow):
         for filename in filenames:
             label_file = osp.splitext(filename)[0] + '.json'
             if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
-            item = QListWidgetItem(filename)
+                label_file = osp.join(self.output_dir, osp.basename(label_file))
+            item = QListWidgetItem(osp.basename(filename))
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             if QFile.exists(label_file) and LabelFile.is_label_file(label_file):
                 item.setCheckState(Qt.Checked)
@@ -1440,6 +1418,10 @@ class MainWindow(QMainWindow):
                 item.setCheckState(Qt.Unchecked)
             self.file_list_widget.addItem(item)
         self.__open_next(load=load)
+
+    def __current_file(self) -> str:
+        filename = self.file_list_widget.currentItem().text()
+        return osp.join(self.lastOpenDir, filename)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
         extensions = [
@@ -1465,7 +1447,6 @@ class MainWindow(QMainWindow):
             enabled=True,
             checked=False,
             ) -> QAction:
-        """Create a new action and assign callbacks, shortcuts, etc."""
         a = QAction(text, self)
         if icon is not None:
             a.setIconText(text.replace(' ', '\n'))
