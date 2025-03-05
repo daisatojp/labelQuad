@@ -935,10 +935,10 @@ class MainWindow(QMainWindow):
         if self.__may_continue():
             self.__load_file(filename)
 
-    def __open_next(self, _value=False, load=True):
+    def __open_next(self) -> None:
         if not self.__may_continue():
             return
-        if self.file_list.count() < 0:
+        if self.file_list.count() <= 0:
             return
         size = self.file_list.count()
         row = self.file_list.currentRow()
@@ -948,21 +948,16 @@ class MainWindow(QMainWindow):
             if row + 1 < size:
                 row = row + 1
         self.file_list.setCurrentRow(row)
-        if load:
-            self.__load_file(self.__current_image_path())
+        self.__load_file(self.__current_image_path())
 
-    def __open_prev(self, _value=False):
+    def __open_prev(self) -> None:
         if not self.__may_continue():
             return
-        if len(self.imageList) <= 0:
+        row = self.file_list.currentRow()
+        if row < 1:
             return
-        if self.filename is None:
-            return
-        currIndex = self.imageList.index(self.filename)
-        if currIndex - 1 >= 0:
-            filename = self.imageList[currIndex - 1]
-            if filename:
-                self.__load_file(filename)
+        self.file_list.setCurrentRow(row - 1)
+        self.__load_file(self.__current_image_path())
 
     def __save_file(self):
         if (self.annot_dir is None) or \
@@ -1068,7 +1063,7 @@ class MainWindow(QMainWindow):
             else:
                 item.setCheckState(Qt.Unchecked)
             self.file_list.addItem(item)
-        self.__open_next(load=load)
+        self.__open_next()
 
     def __current_image_path(self) -> Optional[str]:
         if (self.file_list.currentRow() < 0) or \
