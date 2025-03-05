@@ -370,23 +370,17 @@ class MainWindow(QMainWindow):
             self.__adjust_scale()
         super(MainWindow, self).resizeEvent(event)
 
-    def noShapes(self):
-        return not len(self.label_list)
-
-    def __set_dirty(self):
+    def __set_dirty(self) -> None:
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
         if self.action_save_auto.isChecked():
-            label_file = osp.splitext(self.imagePath)[0] + '.json'
-            if self.output_dir:
-                label_file_without_path = osp.basename(label_file)
-                label_file = osp.join(self.output_dir, label_file_without_path)
-            self.__save_label(label_file)
+            self.__save_label(self.__current_annot_path())
             return
         self.dirty = True
         self.action_save.setEnabled(True)
         title = __appname__
-        if self.filename is not None:
-            title = '{} - {}*'.format(title, self.filename)
+        file = self.__current_image_path()
+        if file is not None:
+            title = f'{title} - {file}*'
         self.setWindowTitle(title)
 
     def __set_clean(self) -> None:
@@ -394,8 +388,9 @@ class MainWindow(QMainWindow):
         self.action_save.setEnabled(False)
         self.action_create_mode.setEnabled(True)
         title = __appname__
-        if self.filename is not None:
-            title = '{} - {}'.format(title, self.filename)
+        file = self.__current_image_path()
+        if file is not None:
+            title = f'{title} - {file}'
         self.setWindowTitle(title)
 
     def __toggle_actions(self, value: bool = True) -> None:
@@ -413,7 +408,7 @@ class MainWindow(QMainWindow):
     def __status(self, message: str, delay: int = 5000) -> None:
         self.statusBar().showMessage(message, delay)
 
-    def __reset_state(self):
+    def __reset_state(self) -> None:
         self.label_list.clear()
         self.filename = None
         self.imagePath = None
@@ -421,12 +416,6 @@ class MainWindow(QMainWindow):
         self.labelFile = None
         self.otherData = None
         self.canvas.resetState()
-
-    def currentItem(self):
-        items = self.label_list.selectedItems()
-        if items:
-            return items[0]
-        return None
 
     def __add_recent_file(self, filename):
         if filename in self.recentFiles:
@@ -1042,7 +1031,7 @@ class MainWindow(QMainWindow):
     def __delete_selected_shape(self) -> None:
         self.__remove_quads(self.canvas.deleteSelected())
         self.__set_dirty()
-        if self.noShapes():
+        if 0 <= len(self.label_list):
             for action in self.actions_on_shapes_present:
                 action.setEnabled(False)
 
