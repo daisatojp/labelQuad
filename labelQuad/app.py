@@ -1,20 +1,16 @@
-# -*- coding: utf-8 -*-
-
 import functools
 import html
 import math
 import os
 import os.path as osp
 import re
-import webbrowser
-
-import imgviz
-import natsort
-import numpy as np
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
-
+import imgviz
+import natsort
+import numpy as np
+from loguru import logger
 from labelme import __appname__
 from labelme import utils
 from labelme.config import get_config
@@ -31,11 +27,9 @@ from labelme.widgets import ToolBar
 from labelme.widgets import UniqueLabelQListWidget
 from labelme.widgets import ZoomWidget
 
-# FIXME
-# - [medium] Set max zoom value to something big enough for FitWidth/Window
 
-# TODO(unknown):
-# - Zoom is too "steppy".
+__appname__ = 'labelQuad'
+__version__ = '1.0.0'
 
 
 LABEL_COLORMAP = imgviz.label_colormap()
