@@ -2036,6 +2036,7 @@ class MainWindow(QMainWindow):
             items = self.file_list.findItems(image_path, Qt.MatchExactly)
             if len(items) == 1:
                 items[0].setCheckState(Qt.Checked)
+            self.__set_clean()
         except LabelFileError as e:
             self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
 
@@ -2446,10 +2447,6 @@ class MainWindow(QMainWindow):
         for quad in self.canvas.selectedShapes:
             self.__add_quad(quad)
         self.quad_list.clearSelection()
-        self.__set_dirty()
-
-    def __move_quad(self) -> None:
-        self.canvas.endMove(copy=False)
         self.__set_dirty()
 
     def __open_image_dir_dialog(self) -> None:
