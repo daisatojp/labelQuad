@@ -1411,6 +1411,7 @@ class MainWindow(QMainWindow):
         self.image = image
         self.image_path = image_path
         self.image_data = image_data
+        self.canvas.loadPixmap(QPixmap.fromImage(self.image))
 
         if (annot_path is not None) and osp.exists(annot_path):
             with open(annot_path, 'r') as f:
@@ -1427,7 +1428,6 @@ class MainWindow(QMainWindow):
                 quads.append(quad)
             self.__load_quads(quads)
 
-        self.canvas.loadPixmap(QPixmap.fromImage(self.image))
         self.__set_clean()
         self.canvas.setEnabled(True)
         is_initial_load = not self.zoom_values
