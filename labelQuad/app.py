@@ -37,6 +37,7 @@ LABEL_COLORMAP = imgviz.label_colormap()
 ZOOM_MODE_FIT_WINDOW = 0
 ZOOM_MODE_FIT_WIDTH = 1
 ZOOM_MODE_MANUAL_ZOOM = 2
+MAX_RECENT_FILES = 7
 
 
 class MainWindow(QMainWindow):
@@ -74,6 +75,13 @@ class MainWindow(QMainWindow):
         self.image_path: Optional[str] = None
         self.image_data: Optional[bytes] = None
         self.zoom_mode = ZOOM_MODE_FIT_WINDOW
+        self.zoom_level = 100
+        self.zoom_values: dict[str, tuple[int, int]] = {}  # key=filename, value=(zoom_mode, zoom_value)
+        self.recent_files: list[str] = []
+        self.brightness_contrast_values = {}
+        self.scroll_values = {
+            Qt.Horizontal: {},
+            Qt.Vertical: {}}
         self._noSelectionSlot = False
         self._copied_shapes = None
 
@@ -328,25 +336,12 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(str(self.tr('%s started.')) % __appname__)
         self.statusBar().show()
 
-        self.output_file = output_file
-        self.output_dir = output_dir
-
-        self.recentFiles = []
-        self.maxRecent = 7
-        self.zoom_level = 100
-        self.fit_window = False
-        self.zoom_values = {}  # key=filename, value=(zoom_mode, zoom_value)
-        self.brightness_contrast_values = {}
-        self.scroll_values = {
-            Qt.Horizontal: {},
-            Qt.Vertical: {}}
-
         if config['file_search']:
             self.file_search.setText(config['file_search'])
             self.__file_search_changed()
 
         self.settings = QSettings('labelme', 'labelme')
-        self.recentFiles = self.settings.value('recentFiles', []) or []
+        self.recent_files = self.settings.value('recent_files', []) or []
         size = self.settings.value('window/size', QSize(600, 500))
         position = self.settings.value('window/position', QPoint(0, 0))
         state = self.settings.value('window/state', QByteArray())
@@ -365,7 +360,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('window/size', self.size())
         self.settings.setValue('window/position', self.pos())
         self.settings.setValue('window/state', self.saveState())
-        self.settings.setValue('recentFiles', self.recentFiles)
+        self.settings.setValue('recent_files', self.recent_files)
 
     def resizeEvent(self, event):
         if (self.canvas) and \
@@ -388,7 +383,6 @@ class MainWindow(QMainWindow):
                 self.tr(f'No such file: <b>{image_path}</b>'))
         self.__status(self.tr(f'Loading {image_path}...'))
         image_data = LabelFile.load_image_file(image_path)
-        self.labelFile = None
         image = QImage.fromData(image_data)
         if image.isNull():
             self.__error_message(
@@ -414,14 +408,11 @@ class MainWindow(QMainWindow):
             utils.img_data_to_pil(self.image_data),
             self.__on_new_brightness_contrast,
             parent=self)
-        brightness, contrast = self.brightness_contrast_values.get(
-            self.image_path, (None, None))
-        if self._config['keep_prev_brightness'] and self.recentFiles:
-            brightness, _ = self.brightness_contrast_values.get(
-                self.recentFiles[0], (None, None))
-        if self._config['keep_prev_contrast'] and self.recentFiles:
-            _, contrast = self.brightness_contrast_values.get(
-                self.recentFiles[0], (None, None))
+        brightness, contrast = self.brightness_contrast_values.get(self.image_path, (None, None))
+        if self._config['keep_prev_brightness'] and (image_path_prev is not None):
+            brightness, _ = self.brightness_contrast_values.get(image_path_prev, (None, None))
+        if self._config['keep_prev_contrast'] and self.recent_files:
+            _, contrast = self.brightness_contrast_values.get(self.recent_files[0], (None, None))
         if brightness is not None:
             dialog.slider_brightness.setValue(brightness)
         if contrast is not None:
@@ -460,7 +451,6 @@ class MainWindow(QMainWindow):
                 imagePath=image_path,
                 imageHeight=self.image.height(),
                 imageWidth=self.image.width())
-            self.labelFile = lf
             items = self.file_list.findItems(image_path, Qt.MatchExactly)
             if len(items) == 1:
                 items[0].setCheckState(Qt.Checked)
@@ -509,15 +499,14 @@ class MainWindow(QMainWindow):
         self.quad_list.clear()
         self.image_path = None
         self.image_data = None
-        self.labelFile = None
         self.canvas.resetState()
 
-    def __add_recent_file(self, filename):
-        if filename in self.recentFiles:
-            self.recentFiles.remove(filename)
-        elif len(self.recentFiles) >= self.maxRecent:
-            self.recentFiles.pop()
-        self.recentFiles.insert(0, filename)
+    def __add_recent_file(self, image_path: str) -> None:
+        if image_path in self.recent_files:
+            self.recent_files.remove(image_path)
+        elif MAX_RECENT_FILES <= len(self.recent_files):
+            self.recent_files.pop()
+        self.recent_files.insert(0, image_path)
 
     def __undo_shape_edit(self) -> None:
         self.canvas.restoreShape()
@@ -550,7 +539,7 @@ class MainWindow(QMainWindow):
 
         menu = self.menu_recent_files
         menu.clear()
-        files = [f for f in self.recentFiles if f != current and exists(f)]
+        files = [x for x in self.recent_files if x != current and exists(x)]
         for i, f in enumerate(files):
             icon = utils.newIcon('labels')
             action = QAction(icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
@@ -972,7 +961,7 @@ class MainWindow(QMainWindow):
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
 
-    def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None, load: bool = True) -> None:
+    def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None) -> None:
         self.action_open_next.setEnabled(True)
         self.action_open_prev.setEnabled(True)
         if not self.__may_continue() or not dirpath:
@@ -980,22 +969,21 @@ class MainWindow(QMainWindow):
         self.image_dir = dirpath
         self.image_path = None
         self.file_list.clear()
-        filenames = self.__scan_all_images(dirpath)
+        image_paths = self.__scan_all_images(dirpath)
         if pattern:
             try:
-                filenames = [f for f in filenames if re.search(pattern, f)]
+                image_paths = [x for x in image_paths if re.search(pattern, x)]
             except re.error:
                 pass
-        for filename in filenames:
-            label_file = osp.splitext(filename)[0] + '.json'
-            if self.output_dir:
-                label_file = osp.join(self.output_dir, osp.basename(label_file))
-            item = QListWidgetItem(osp.basename(filename))
+        for image_path in image_paths:
+            item = QListWidgetItem(osp.basename(image_path))
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if QFile.exists(label_file) and LabelFile.is_label_file(label_file):
-                item.setCheckState(Qt.Checked)
-            else:
-                item.setCheckState(Qt.Unchecked)
+            if self.annot_dir is not None:
+                annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
+                if QFile.exists(annot_path) and LabelFile.is_label_file(annot_path):
+                    item.setCheckState(Qt.Checked)
+                else:
+                    item.setCheckState(Qt.Unchecked)
             self.file_list.addItem(item)
         self.__open_next()
 
