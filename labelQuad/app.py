@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
             for label in self._config['labels']:
                 item = self.label_list.createItemFromLabel(label)
                 self.label_list.addItem(item)
-                rgb = self._get_rgb_by_label(label)
+                rgb = self.__get_rgb_by_label(label)
                 self.label_list.setItemLabel(item, label, rgb)
         self.label_dock = QDockWidget(self.tr('Labels'), self)
         self.label_dock.setObjectName('Label List')
@@ -529,7 +529,7 @@ class MainWindow(QMainWindow):
         if self.label_list.findItemByLabel(shape.label) is None:
             item = self.label_list.createItemFromLabel(shape.label)
             self.label_list.addItem(item)
-            rgb = self._get_rgb_by_label(shape.label)
+            rgb = self.__get_rgb_by_label(shape.label)
             self.label_list.setItemLabel(item, shape.label, rgb)
 
     def __file_search_changed(self) -> None:
@@ -567,7 +567,7 @@ class MainWindow(QMainWindow):
         if self.label_list.findItemByLabel(shape.label) is None:
             item = self.label_list.createItemFromLabel(shape.label)
             self.label_list.addItem(item)
-            rgb = self._get_rgb_by_label(shape.label)
+            rgb = self.__get_rgb_by_label(shape.label)
             self.label_list.setItemLabel(item, shape.label, rgb)
         self.label_dialog.addLabelHistory(shape.label)
         for action in self.actions_on_shapes_present:
@@ -579,7 +579,7 @@ class MainWindow(QMainWindow):
                 html.escape(text), *shape.fill_color.getRgb()[:3]))
 
     def _update_shape_color(self, shape):
-        r, g, b = self._get_rgb_by_label(shape.label)
+        r, g, b = self.__get_rgb_by_label(shape.label)
         shape.line_color = QColor(r, g, b)
         shape.vertex_fill_color = QColor(r, g, b)
         shape.hvertex_fill_color = QColor(255, 255, 255)
@@ -587,26 +587,11 @@ class MainWindow(QMainWindow):
         shape.select_line_color = QColor(255, 255, 255)
         shape.select_fill_color = QColor(r, g, b, 155)
 
-    def _get_rgb_by_label(self, label):
-        if self._config['shape_color'] == 'auto':
-            item = self.label_list.findItemByLabel(label)
-            if item is None:
-                item = self.label_list.createItemFromLabel(label)
-                self.label_list.addItem(item)
-                rgb = self._get_rgb_by_label(label)
-                self.label_list.setItemLabel(item, label, rgb)
-            label_id = self.label_list.indexFromItem(item).row() + 1
-            label_id += self._config['shift_auto_shape_color']
-            return LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)]
-        elif (
-            self._config['shape_color'] == 'manual'
-            and self._config['label_colors']
-            and label in self._config['label_colors']
-        ):
-            return self._config['label_colors'][label]
-        elif self._config['default_shape_color']:
-            return self._config['default_shape_color']
-        return (0, 255, 0)
+    def __get_rgb_by_label(self, label: str) -> tuple[int, int, int]:
+        item = self.label_list.findItemByLabel(label)
+        label_id = self.label_list.indexFromItem(item).row() + 1
+        label_id += self._config['shift_auto_shape_color']
+        return tuple(LABEL_COLORMAP[label_id % len(LABEL_COLORMAP)].tolist())
 
     def __load_shapes(self, shapes, replace=True) -> None:
         self._noSelectionSlot = True
@@ -621,7 +606,7 @@ class MainWindow(QMainWindow):
             item = self.quad_list.findItemByShape(quad)
             self.quad_list.removeItem(item)
 
-    def loadLabels(self, shapes):
+    def loadLabels(self, shapes) -> None:
         s = []
         for shape in shapes:
             label = shape['label']
@@ -676,15 +661,15 @@ class MainWindow(QMainWindow):
             self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
             return False
 
-    def __paste_selected_shape(self):
+    def __paste_selected_shape(self) -> None:
         self.__load_shapes(self._copied_shapes, replace=False)
         self.__set_dirty()
 
-    def __copy_selected_shape(self):
+    def __copy_selected_shape(self) -> None:
         self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
         self.action_paste.setEnabled(len(self._copied_shapes) > 0)
 
-    def __label_selection_changed(self):
+    def __label_selection_changed(self) -> None:
         if self._noSelectionSlot:
             return
         if self.canvas.editing():
@@ -696,11 +681,11 @@ class MainWindow(QMainWindow):
             else:
                 self.canvas.deSelectShape()
 
-    def __label_item_changed(self, item):
+    def __label_item_changed(self, item) -> None:
         shape = item.shape()
         self.canvas.setShapeVisible(shape, item.checkState() == Qt.Checked)
 
-    def __label_order_changed(self):
+    def __label_order_changed(self) -> None:
         self.__set_dirty()
         self.canvas.loadShapes([item.shape() for item in self.quad_list])
 
