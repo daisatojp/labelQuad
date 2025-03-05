@@ -331,7 +331,6 @@ class MainWindow(QMainWindow):
         self.imagePath = None
         self.recentFiles = []
         self.maxRecent = 7
-        self.otherData = None
         self.zoom_level = 100
         self.fit_window = False
         self.zoom_values = {}  # key=filename, value=(zoom_mode, zoom_value)
@@ -417,7 +416,6 @@ class MainWindow(QMainWindow):
         self.imagePath = None
         self.imageData = None
         self.labelFile = None
-        self.otherData = None
         self.canvas.resetState()
 
     def __add_recent_file(self, filename):
@@ -648,28 +646,25 @@ class MainWindow(QMainWindow):
     def __save_label(self, filename: str) -> None:
         lf = LabelFile()
 
-        def format_shape(s):
-            data = s.other_data.copy()
-            data.update(
-                dict(
-                    label=s.label,
-                    points=[(p.x(), p.y()) for p in s.points],
-                    shape_type=s.shape_type))
-            return data
+        def format_shape(s: Shape) -> dict:
+            pts = s.points
+            return dict(
+                label=s.label,
+                p1x=round(pts[0].x(), 2), p1y=round(pts[0].y(), 2),
+                p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
+                p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
+                p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
 
-        shapes = [format_shape(item.shape()) for item in self.quad_list]
         try:
             imagePath = osp.relpath(self.imagePath, osp.dirname(filename))
             if osp.dirname(filename) and not osp.exists(osp.dirname(filename)):
                 os.makedirs(osp.dirname(filename))
             lf.save(
                 filename=filename,
-                shapes=shapes,
+                shapes=[format_shape(item.shape()) for item in self.quad_list],
                 imagePath=imagePath,
                 imageHeight=self.image.height(),
-                imageWidth=self.image.width(),
-                otherData=self.otherData,
-            )
+                imageWidth=self.image.width())
             self.labelFile = lf
             items = self.file_list.findItems(self.imagePath, Qt.MatchExactly)
             if len(items) > 0:
@@ -850,11 +845,7 @@ class MainWindow(QMainWindow):
                 )
                 self.__status(self.tr('Error reading %s') % label_file)
             self.imageData = self.labelFile.imageData
-            self.imagePath = osp.join(
-                osp.dirname(label_file),
-                self.labelFile.imagePath,
-            )
-            self.otherData = self.labelFile.otherData
+            self.imagePath = osp.join(osp.dirname(label_file), self.labelFile.imagePath)
         else:
             self.imageData = LabelFile.load_image_file(filename)
             if self.imageData:
