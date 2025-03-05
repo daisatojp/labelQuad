@@ -960,6 +960,7 @@ class MainWindow(QMainWindow):
         self.annot_dir = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
+        self.__refresh_file_check_state()
 
     def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None) -> None:
         self.action_open_next.setEnabled(True)
@@ -968,24 +969,32 @@ class MainWindow(QMainWindow):
             return
         self.image_dir = dirpath
         self.image_path = None
-        self.file_list.clear()
         image_paths = self.__scan_all_images(dirpath)
         if pattern:
             try:
                 image_paths = [x for x in image_paths if re.search(pattern, x)]
             except re.error:
                 pass
+        self.file_list.clear()
         for image_path in image_paths:
             item = QListWidgetItem(osp.basename(image_path))
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            if self.annot_dir is not None:
-                annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
-                if QFile.exists(annot_path) and LabelFile.is_label_file(annot_path):
-                    item.setCheckState(Qt.Checked)
-                else:
-                    item.setCheckState(Qt.Unchecked)
             self.file_list.addItem(item)
+        self.__refresh_file_check_state()
         self.__open_next()
+
+    def __refresh_file_check_state(self) -> None:
+        if (self.image_dir is None) or \
+           (self.annot_dir is None):
+            return
+        for i in range(self.file_list.count()):
+            item = self.file_list.item(i)
+            image_path = osp.join(self.image_dir, item.text())
+            annot_path = osp.join(self.annot_dir, osp.splitext(osp.basename(image_path))[0] + '.json')
+            if QFile.exists(annot_path) and LabelFile.is_label_file(annot_path):
+                item.setCheckState(Qt.Checked)
+            else:
+                item.setCheckState(Qt.Unchecked)
 
     def __current_image_path(self) -> Optional[str]:
         if (self.file_list.currentRow() < 0) or \
