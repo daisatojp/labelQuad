@@ -112,15 +112,13 @@ class Shape(object):
     scale = 1.0
 
     def __init__(
-        self,
-        label=None,
-        line_color=None,
-        shape_type=None,
-        flags=None,
-        group_id=None,
-        description=None,
-        mask=None,
-    ):
+            self,
+            label=None,
+            line_color=None,
+            shape_type=None,
+            flags=None,
+            group_id=None,
+            description=None):
         self.label = label
         self.group_id = group_id
         self.points = []
@@ -134,7 +132,6 @@ class Shape(object):
         self.flags = flags
         self.description = description
         self.other_data = {}
-        self.mask = mask
 
         self._highlightIndex = None
         self._highlightMode = self.NEAR_VERTEX
@@ -154,12 +151,11 @@ class Shape(object):
     def _scale_point(self, point: QPointF) -> QPointF:
         return QPointF(point.x() * self.scale, point.y() * self.scale)
 
-    def setShapeRefined(self, shape_type, points, point_labels, mask=None):
+    def setShapeRefined(self, shape_type, points, point_labels):
         self._shape_raw = (self.shape_type, self.points, self.point_labels)
         self.shape_type = shape_type
         self.points = points
         self.point_labels = point_labels
-        self.mask = mask
 
     def restoreShapeRaw(self):
         if self._shape_raw is None:
@@ -175,13 +171,7 @@ class Shape(object):
     def shape_type(self, value):
         if value is None:
             value = "polygon"
-        if value not in [
-            "polygon",
-            "point",
-            "line",
-            "points",
-            "mask",
-        ]:
+        if value not in ["polygon", "point", "line", "points"]:
             raise ValueError("Unexpected shape_type: {}".format(value))
         self._shape_type = value
 
@@ -228,7 +218,7 @@ class Shape(object):
         self._closed = False
 
     def paint(self, painter):
-        if self.mask is None and not self.points:
+        if not self.points:
             return
 
         color = self.select_line_color if self.selected else self.line_color
@@ -236,36 +226,6 @@ class Shape(object):
         # Try using integer sizes for smoother drawing(?)
         pen.setWidth(self.PEN_WIDTH)
         painter.setPen(pen)
-
-        if self.mask is not None:
-            image_to_draw = np.zeros(self.mask.shape + (4,), dtype=np.uint8)
-            fill_color = (
-                self.select_fill_color.getRgb()
-                if self.selected
-                else self.fill_color.getRgb()
-            )
-            image_to_draw[self.mask] = fill_color
-            qimage = QImage.fromData(img_arr_to_data(image_to_draw))
-            qimage = qimage.scaled(
-                qimage.size() * self.scale,
-                Qt.IgnoreAspectRatio,
-                Qt.SmoothTransformation,
-            )
-
-            painter.drawImage(self._scale_point(point=self.points[0]), qimage)
-
-            line_path = QPainterPath()
-            contours = skimage.measure.find_contours(np.pad(self.mask, pad_width=1))
-            for contour in contours:
-                contour += [self.points[0].y(), self.points[0].x()]
-                line_path.moveTo(
-                    self._scale_point(QPointF(contour[0, 1], contour[0, 0]))
-                )
-                for point in contour[1:]:
-                    line_path.lineTo(
-                        self._scale_point(QPointF(point[1], point[0]))
-                    )
-            painter.drawPath(line_path)
 
         if self.points:
             line_path = QPainterPath()
@@ -281,11 +241,6 @@ class Shape(object):
                         self.drawVertex(negative_vrtx_path, i)
             else:
                 line_path.moveTo(self._scale_point(self.points[0]))
-                # Uncommenting the following line will draw 2 paths
-                # for the 1st vertex, and make it non-filled, which
-                # may be desirable.
-                # self.drawVertex(vrtx_path, 0)
-
                 for i, p in enumerate(self.points):
                     line_path.lineTo(self._scale_point(p))
                     self.drawVertex(vrtx_path, i)
@@ -296,7 +251,7 @@ class Shape(object):
             if vrtx_path.length() > 0:
                 painter.drawPath(vrtx_path)
                 painter.fillPath(vrtx_path, self._vertex_fill_color)
-            if self.fill and self.mask is None:
+            if self.fill:
                 color = self.select_fill_color if self.selected else self.fill_color
                 painter.fillPath(line_path, color)
 
@@ -352,18 +307,6 @@ class Shape(object):
         return post_i
 
     def containsPoint(self, point):
-        if self.mask is not None:
-            y = np.clip(
-                int(round(point.y() - self.points[0].y())),
-                0,
-                self.mask.shape[0] - 1,
-            )
-            x = np.clip(
-                int(round(point.x() - self.points[0].x())),
-                0,
-                self.mask.shape[1] - 1,
-            )
-            return self.mask[y, x]
         return self.makePath().contains(point)
 
     def makePath(self):
@@ -435,13 +378,7 @@ class Canvas(QWidget):
         self.num_backups = kwargs.pop("num_backups", 10)
         self._crosshair = kwargs.pop(
             "crosshair",
-            {
-                "polygon": False,
-                "line": False,
-                "point": False,
-                "ai_mask": False,
-            },
-        )
+            {"polygon": False, "line": False, "point": False})
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
         self.mode = self.EDIT
@@ -496,12 +433,7 @@ class Canvas(QWidget):
 
     @createMode.setter
     def createMode(self, value):
-        if value not in [
-            "polygon",
-            "line",
-            "point",
-            "ai_mask",
-        ]:
+        if value not in ["polygon", "line", "point"]:
             raise ValueError("Unsupported createMode: %s" % value)
         self._createMode = value
 
@@ -1316,8 +1248,7 @@ class LabelFile(object):
             "group_id",
             "shape_type",
             "flags",
-            "description",
-            "mask",
+            "description"
         ]
         try:
             with open(filename, "r") as f:
@@ -1344,9 +1275,6 @@ class LabelFile(object):
                     flags=s.get("flags", {}),
                     description=s.get("description"),
                     group_id=s.get("group_id"),
-                    mask=img_b64_to_arr(s["mask"]).astype(bool)
-                    if s.get("mask")
-                    else None,
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
                 for s in data["shapes"]
@@ -2994,7 +2922,6 @@ def get_default_config():
                 "    polygon: false",
                 "    line: false",
                 "    point: false",
-                "    ai_mask: false",
                 "",
                 "shortcuts:",
                 "  close: Ctrl+W",
