@@ -23,7 +23,7 @@ pyz = PYZ(
 
 exe = EXE(
     pyz,
-    Tree('icons', prefix='icon'),
+    Tree('icon', prefix='icon'),
     a.scripts,
     a.binaries,
     a.zipfiles,
@@ -37,4 +37,4 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
-    icon='icons\\icon.ico')
+    icon='icon\\icon.ico')
