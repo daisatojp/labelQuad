@@ -7,3 +7,4 @@ pyinstaller/
 
 .env
 .settings.json
+default_config.yaml
