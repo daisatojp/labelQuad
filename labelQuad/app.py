@@ -23,7 +23,6 @@ import labelme
 from labelme import __appname__
 from labelme import utils
 from labelme.config import get_config
-from labelme.widgets import BrightnessContrastDialog
 from labelme.widgets import LabelDialog
 from labelme.widgets import LabelListWidget
 from labelme.widgets import LabelListWidgetItem
@@ -1606,6 +1605,68 @@ class LabelFile(object):
     @staticmethod
     def is_label_file(filename):
         return osp.splitext(filename)[1].lower() == LabelFile.suffix
+
+
+class BrightnessContrastDialog(QDialog):
+    _base_value = 50
+
+    def __init__(self, img, callback, parent=None):
+        super(BrightnessContrastDialog, self).__init__(parent)
+        self.setModal(True)
+        self.setWindowTitle("Brightness/Contrast")
+
+        sliders = {}
+        layouts = {}
+        for title in ["Brightness:", "Contrast:"]:
+            layout = QHBoxLayout()
+            title_label = QLabel(self.tr(title))
+            title_label.setFixedWidth(75)
+            layout.addWidget(title_label)
+            #
+            slider = QSlider(Qt.Horizontal)
+            slider.setRange(0, 3 * self._base_value)
+            slider.setValue(self._base_value)
+            layout.addWidget(slider)
+            #
+            value_label = QLabel(f"{slider.value() / self._base_value:.2f}")
+            value_label.setAlignment(Qt.AlignRight)
+            layout.addWidget(value_label)
+            #
+            slider.valueChanged.connect(self.onNewValue)
+            slider.valueChanged.connect(
+                lambda: value_label.setText(f"{slider.value() / self._base_value:.2f}")
+            )
+            layouts[title] = layout
+            sliders[title] = slider
+
+        self.slider_brightness = sliders["Brightness:"]
+        self.slider_contrast = sliders["Contrast:"]
+        del sliders
+
+        layout = QVBoxLayout()
+        layout.addLayout(layouts["Brightness:"])
+        layout.addLayout(layouts["Contrast:"])
+        del layouts
+        self.setLayout(layout)
+
+        assert isinstance(img, PIL.Image.Image)
+        self.img = img
+        self.callback = callback
+
+    def onNewValue(self, _):
+        brightness = self.slider_brightness.value() / self._base_value
+        contrast = self.slider_contrast.value() / self._base_value
+
+        img = self.img
+        if brightness != 1:
+            img = PIL.ImageEnhance.Brightness(img).enhance(brightness)
+        if contrast != 1:
+            img = PIL.ImageEnhance.Contrast(img).enhance(contrast)
+
+        qimage = QImage(
+            img.tobytes(), img.width, img.height, img.width * 3, QImage.Format_RGB888
+        )
+        self.callback(qimage)
 
 
 class MainWindow(QMainWindow):
