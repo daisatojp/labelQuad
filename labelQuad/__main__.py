@@ -3271,7 +3271,7 @@ def main():
     parser.add_argument('--version', '-V', action='store_true', help='show version')
     parser.add_argument('--reset-config', action='store_true', help='reset qt config')
     parser.add_argument('--output', '-O', '-o')
-    default_config_file = os.path.join(os.path.expanduser('~'), '.labelmerc')
+    default_config_file = os.path.join(os.path.expanduser('~'), '.labelQuadrc')
     parser.add_argument('--config', dest='config', default=default_config_file)
     parser.add_argument(
         '--flags',
@@ -3340,7 +3340,7 @@ def main():
         logger.error(
             '--labels must be specified with --validatelabel or '
             'validate_label: true in the config file '
-            '(ex. ~/.labelmerc).'
+            '(ex. ~/.labelQuadrc).'
         )
         sys.exit(1)
 

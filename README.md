@@ -11,8 +11,10 @@ Labeling tool for images with quadrangle.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install labelme
-python labelme
+pip install PyQt5==5.15.11 \
+            PyQt5-Qt5==5.15.16 \
+            loguru
+python labelQuad
 ```
 
 ## Windows
@@ -20,6 +22,8 @@ python labelme
 ```
 python -m venv .venv
 .\.venv\Scripts\activate
-pip install labelme
-python labelme
+pip install PyQt5==5.15.11 \
+            PyQt5-Qt5==5.15.16 \
+            loguru
+python labelQuad
 ```
