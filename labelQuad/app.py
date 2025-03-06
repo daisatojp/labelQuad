@@ -22,7 +22,6 @@ import natsort
 import numpy as np
 import yaml
 import labelme
-from labelme import utils
 import skimage.measure
 
 
@@ -266,7 +265,7 @@ class Shape(object):
                 else self.fill_color.getRgb()
             )
             image_to_draw[self.mask] = fill_color
-            qimage = QImage.fromData(labelme.utils.img_arr_to_data(image_to_draw))
+            qimage = QImage.fromData(img_arr_to_data(image_to_draw))
             qimage = qimage.scaled(
                 qimage.size() * self.scale,
                 Qt.IgnoreAspectRatio,
@@ -307,7 +306,7 @@ class Shape(object):
             elif self.shape_type == "circle":
                 assert len(self.points) in [1, 2]
                 if len(self.points) == 2:
-                    raidus = labelme.utils.distance(
+                    raidus = distance(
                         self._scale_point(self.points[0] - self.points[1])
                     )
                     line_path.addEllipse(
@@ -377,7 +376,7 @@ class Shape(object):
         point = QPointF(point.x() * self.scale, point.y() * self.scale)
         for i, p in enumerate(self.points):
             p = QPointF(p.x() * self.scale, p.y() * self.scale)
-            dist = labelme.utils.distance(p - point)
+            dist = distance(p - point)
             if dist <= epsilon and dist < min_distance:
                 min_distance = dist
                 min_i = i
@@ -393,7 +392,7 @@ class Shape(object):
             start = QPointF(start.x() * self.scale, start.y() * self.scale)
             end = QPointF(end.x() * self.scale, end.y() * self.scale)
             line = [start, end]
-            dist = labelme.utils.distancetoline(point, line)
+            dist = distancetoline(point, line)
             if dist <= epsilon and dist < min_distance:
                 min_distance = dist
                 post_i = i
@@ -422,7 +421,7 @@ class Shape(object):
         elif self.shape_type == "circle":
             path = QPainterPath()
             if len(self.points) == 2:
-                raidus = labelme.utils.distance(self.points[0] - self.points[1])
+                raidus = distance(self.points[0] - self.points[1])
                 path.addEllipse(self.points[0], raidus, raidus)
         else:
             path = QPainterPath(self.points[0])
@@ -600,7 +599,7 @@ class Canvas(QWidget):
             return
 
         self._ai_model.set_image(
-            image=labelme.utils.img_qt_to_arr(self.pixmap.toImage())
+            image=img_qt_to_arr(self.pixmap.toImage())
         )
 
     def storeShapes(self):
@@ -1286,7 +1285,7 @@ class Canvas(QWidget):
         # m = (p1-p2).manhattanLength()
         # print "d %.2f, m %d, %.2f" % (d, m, d - m)
         # divide by scale to allow more precision when zoomed in
-        return labelme.utils.distance(p1 - p2) < (self.epsilon / self.scale)
+        return distance(p1 - p2) < (self.epsilon / self.scale)
 
     def intersectionPoint(self, p1, p2):
         # Cycle through each image edge in clockwise fashion,
@@ -1340,7 +1339,7 @@ class Canvas(QWidget):
                 x = x1 + ua * (x2 - x1)
                 y = y1 + ua * (y2 - y1)
                 m = QPointF((x3 + x4) / 2, (y3 + y4) / 2)
-                d = labelme.utils.distance(m - QPointF(x2, y2))
+                d = distance(m - QPointF(x2, y2))
                 yield d, i, (x, y)
 
     # These two, along with a call to adjustSize are required for the
@@ -1444,7 +1443,7 @@ class Canvas(QWidget):
         self.pixmap = pixmap
         if self._ai_model:
             self._ai_model.set_image(
-                image=labelme.utils.img_qt_to_arr(self.pixmap.toImage())
+                image=img_qt_to_arr(self.pixmap.toImage())
             )
         if clear_shapes:
             self.shapes = []
@@ -1505,7 +1504,7 @@ class LabelFile(object):
             return
 
         # apply orientation to image according to exif
-        image_pil = utils.apply_exif_orientation(image_pil)
+        image_pil = apply_exif_orientation(image_pil)
 
         with io.BytesIO() as f:
             ext = osp.splitext(filename)[1].lower()
@@ -1561,7 +1560,7 @@ class LabelFile(object):
                     flags=s.get("flags", {}),
                     description=s.get("description"),
                     group_id=s.get("group_id"),
-                    mask=utils.img_b64_to_arr(s["mask"]).astype(bool)
+                    mask=img_b64_to_arr(s["mask"]).astype(bool)
                     if s.get("mask")
                     else None,
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
@@ -1586,7 +1585,7 @@ class LabelFile(object):
 
     @staticmethod
     def _check_image_height_and_width(imageData, imageHeight, imageWidth):
-        img_arr = utils.img_b64_to_arr(imageData)
+        img_arr = img_b64_to_arr(imageData)
         if imageHeight is not None and img_arr.shape[0] != imageHeight:
             logger.error(
                 "imageHeight does not match with imageData or imagePath, "
@@ -1887,7 +1886,7 @@ class LabelDialog(QDialog):
         super(LabelDialog, self).__init__(parent)
         self.edit = LabelQLineEdit()
         self.edit.setPlaceholderText(text)
-        self.edit.setValidator(labelme.utils.labelValidator())
+        self.edit.setValidator(labelValidator())
         self.edit.editingFinished.connect(self.postProcess)
         if flags:
             self.edit.textChanged.connect(self.updateFlags)
@@ -1908,8 +1907,8 @@ class LabelDialog(QDialog):
             Qt.Horizontal,
             self,
         )
-        bb.button(bb.Ok).setIcon(labelme.utils.newIcon("done"))
-        bb.button(bb.Cancel).setIcon(labelme.utils.newIcon("undo"))
+        bb.button(bb.Ok).setIcon(newIcon("done"))
+        bb.button(bb.Cancel).setIcon(newIcon("undo"))
         bb.accepted.connect(self.validate)
         bb.rejected.connect(self.reject)
         layout.addWidget(bb)
@@ -2313,8 +2312,8 @@ class MainWindow(QMainWindow):
         self.zoom.defaultWidget().setLayout(zoom_box_layout)
         self.zoom_widget.setWhatsThis(
             str(self.tr('Zoom in or out of the image. Also accessible with {} and {} from the canvas.'))
-            .format(utils.fmtShortcut('{},{}'.format(shortcuts['zoom_in'], shortcuts['zoom_out'])),
-                    utils.fmtShortcut(self.tr('Ctrl+Wheel'))))
+            .format(fmtShortcut('{},{}'.format(shortcuts['zoom_in'], shortcuts['zoom_out'])),
+                    fmtShortcut(self.tr('Ctrl+Wheel'))))
         self.zoom_widget.setEnabled(False)
 
         self.action_zoom_in = self.__new_action(self.tr('Zoom &In'), slot=partial(self.__add_zoom, 1.1), shortcut=shortcuts['zoom_in'], icon='zoom-in', tip=self.tr('Increase zoom level'), enabled=False)
@@ -2337,7 +2336,7 @@ class MainWindow(QMainWindow):
             self.action_fill_drawing.trigger()
 
         label_menu = QMenu()
-        utils.addActions(label_menu, (self.action_edit, self.action_delete))
+        addActions(label_menu, (self.action_edit, self.action_delete))
         self.quad_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.quad_list.customContextMenuRequested.connect(self.__pop_label_list_menu)
 
@@ -2348,7 +2347,7 @@ class MainWindow(QMainWindow):
         self.menu_recent_files = QMenu(self.tr('Open &Recent'))
         self.menu_label_list = label_menu
 
-        utils.addActions(
+        addActions(
             self.menu_file,
             (self.action_open_image_dir,
              self.action_open_annot_dir,
@@ -2360,8 +2359,8 @@ class MainWindow(QMainWindow):
              self.action_close,
              None,
              self.action_quit))
-        utils.addActions(self.menu_help, ())
-        utils.addActions(
+        addActions(self.menu_help, ())
+        addActions(
             self.menu_view,
             (self.label_dock.toggleViewAction(),
              self.quad_dock.toggleViewAction(),
@@ -2384,7 +2383,7 @@ class MainWindow(QMainWindow):
              self.action_brightness_contrast))
         self.menu_file.aboutToShow.connect(self.updateFileMenu)
 
-        utils.addActions(
+        addActions(
             self.canvas.menus[0],
             (self.action_create_mode,
              self.action_edit_mode,
@@ -2395,7 +2394,7 @@ class MainWindow(QMainWindow):
              self.action_undo,
              self.action_undo_last_point))
         self.canvas.menus[1] = self.__copy_quad
-        utils.addActions(
+        addActions(
             self.menu_edit,
             (self.action_create_mode,
              self.action_edit_mode,
@@ -2414,7 +2413,7 @@ class MainWindow(QMainWindow):
         self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self.addToolBar(Qt.TopToolBarArea, self.tools)
 
-        utils.addActions(
+        addActions(
             self.tools,
             (self.action_open_image_dir,
              self.action_open_annot_dir,
@@ -2524,7 +2523,7 @@ class MainWindow(QMainWindow):
             if self.image_path in self.scroll_values[orientation]:
                 self.__set_scroll(orientation, self.scroll_values[orientation][self.image_path])
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.image_data),
+            img_data_to_pil(self.image_data),
             self.__on_new_brightness_contrast,
             parent=self)
         brightness, contrast = self.brightness_contrast_values.get(self.image_path, (None, None))
@@ -2662,7 +2661,7 @@ class MainWindow(QMainWindow):
         menu.clear()
         files = [x for x in self.recent_files if x != current and exists(x)]
         for i, f in enumerate(files):
-            icon = utils.newIcon('labels')
+            icon = newIcon('labels')
             action = QAction(icon, '&%d %s' % (i + 1, QFileInfo(f).fileName()), self)
             action.triggered.connect(partial(self.__load_recent, f))
             menu.addAction(action)
@@ -2882,7 +2881,7 @@ class MainWindow(QMainWindow):
 
     def __brightness_contrast(self, value) -> None:
         dialog = BrightnessContrastDialog(
-            utils.img_data_to_pil(self.image_data),
+            img_data_to_pil(self.image_data),
             self.__on_new_brightness_contrast,
             parent=self)
         brightness, contrast = self.brightness_contrast_values.get(self.image_path, (None, None))
@@ -3169,3 +3168,125 @@ def get_config(config_file_or_yaml=None, config_from_args=None):
         update_dict(config, config_from_args, validate_item=validate_config_item)
 
     return config
+
+
+def img_data_to_pil(img_data):
+    f = io.BytesIO()
+    f.write(img_data)
+    img_pil = PIL.Image.open(f)
+    return img_pil
+
+
+def img_data_to_arr(img_data):
+    img_pil = img_data_to_pil(img_data)
+    img_arr = np.array(img_pil)
+    return img_arr
+
+
+def img_pil_to_data(img_pil):
+    f = io.BytesIO()
+    img_pil.save(f, format="PNG")
+    img_data = f.getvalue()
+    return img_data
+
+
+def img_b64_to_arr(img_b64):
+    img_data = base64.b64decode(img_b64)
+    img_arr = img_data_to_arr(img_data)
+    return img_arr
+
+
+def img_arr_to_data(img_arr):
+    img_pil = PIL.Image.fromarray(img_arr)
+    img_data = img_pil_to_data(img_pil)
+    return img_data
+
+
+def newIcon(icon):
+    icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), "../icons")
+    return QIcon(osp.join(":/", icons_dir, "%s.png" % icon))
+
+
+def addActions(widget, actions):
+    for action in actions:
+        if action is None:
+            widget.addSeparator()
+        elif isinstance(action, QMenu):
+            widget.addMenu(action)
+        else:
+            widget.addAction(action)
+
+
+def fmtShortcut(text):
+    mod, key = text.split("+", 1)
+    return "<b>%s</b>+<b>%s</b>" % (mod, key)
+
+
+def labelValidator():
+    return QRegExpValidator(QRegExp(r"^[^ \t].+"), None)
+
+
+def apply_exif_orientation(image):
+    try:
+        exif = image._getexif()
+    except AttributeError:
+        exif = None
+
+    if exif is None:
+        return image
+
+    exif = {PIL.ExifTags.TAGS[k]: v for k, v in exif.items() if k in PIL.ExifTags.TAGS}
+
+    orientation = exif.get("Orientation", None)
+
+    if orientation == 1:
+        # do nothing
+        return image
+    elif orientation == 2:
+        # left-to-right mirror
+        return PIL.ImageOps.mirror(image)
+    elif orientation == 3:
+        # rotate 180
+        return image.transpose(PIL.Image.ROTATE_180)
+    elif orientation == 4:
+        # top-to-bottom mirror
+        return PIL.ImageOps.flip(image)
+    elif orientation == 5:
+        # top-to-left mirror
+        return PIL.ImageOps.mirror(image.transpose(PIL.Image.ROTATE_270))
+    elif orientation == 6:
+        # rotate 270
+        return image.transpose(PIL.Image.ROTATE_270)
+    elif orientation == 7:
+        # top-to-right mirror
+        return PIL.ImageOps.mirror(image.transpose(PIL.Image.ROTATE_90))
+    elif orientation == 8:
+        # rotate 90
+        return image.transpose(PIL.Image.ROTATE_90)
+    else:
+        return image
+
+
+def img_qt_to_arr(img_qt):
+    w, h, d = img_qt.size().width(), img_qt.size().height(), img_qt.depth()
+    bytes_ = img_qt.bits().asstring(w * h * d // 8)
+    img_arr = np.frombuffer(bytes_, dtype=np.uint8).reshape((h, w, d // 8))
+    return img_arr
+
+
+def distance(p):
+    return math.sqrt(p.x() * p.x() + p.y() * p.y())
+
+
+def distancetoline(point, line):
+    p1, p2 = line
+    p1 = np.array([p1.x(), p1.y()])
+    p2 = np.array([p2.x(), p2.y()])
+    p3 = np.array([point.x(), point.y()])
+    if np.dot((p3 - p1), (p2 - p1)) < 0:
+        return np.linalg.norm(p3 - p1)
+    if np.dot((p3 - p2), (p1 - p2)) < 0:
+        return np.linalg.norm(p3 - p2)
+    if np.linalg.norm(p2 - p1) == 0:
+        return np.linalg.norm(p3 - p1)
+    return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
