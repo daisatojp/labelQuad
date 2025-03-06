@@ -3076,7 +3076,7 @@ class MainWindow(QMainWindow):
         return a
 
     def __new_icon(self, icon: str) -> QIcon:
-        icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), '../labelQuad/icons')
+        icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), '..', 'icons')
         return QIcon(osp.join(':/', icons_dir, f'{icon}.png'))
 
 
@@ -3177,7 +3177,7 @@ def img_arr_to_data(img_arr):
 
 
 def newIcon(icon):
-    icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), "../icons")
+    icons_dir = osp.join(osp.dirname(osp.abspath(__file__)), "icons")
     return QIcon(osp.join(":/", icons_dir, "%s.png" % icon))
 
 
