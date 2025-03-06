@@ -2,9 +2,7 @@
 
 Labeling tool for images with quadrangle.
 
-<h1 align="center">
-  <img src="sample/screenshot.png"><br/>labelQuad
-</h1>
+<center><img src="sample/screenshot.png"></center>
 
 ## Requirements
 
