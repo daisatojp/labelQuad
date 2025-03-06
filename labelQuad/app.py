@@ -23,8 +23,6 @@ import numpy as np
 import yaml
 import labelme
 from labelme import utils
-from labelme.widgets import UniqueLabelQListWidget
-from labelme.widgets import ZoomWidget
 import skimage.measure
 
 
@@ -70,6 +68,24 @@ class ToolBar(QToolBar):
         for i in range(self.layout().count()):
             if isinstance(self.layout().itemAt(i).widget(), QToolButton):
                 self.layout().itemAt(i).setAlignment(Qt.AlignCenter)
+
+
+class ZoomWidget(QSpinBox):
+    def __init__(self, value=100):
+        super(ZoomWidget, self).__init__()
+        self.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.setRange(1, 1000)
+        self.setSuffix(" %")
+        self.setValue(value)
+        self.setToolTip("Zoom Level")
+        self.setStatusTip(self.toolTip())
+        self.setAlignment(Qt.AlignCenter)
+
+    def minimumSizeHint(self):
+        height = super(ZoomWidget, self).minimumSizeHint().height()
+        fm = QFontMetrics(self.font())
+        width = fm.width(str(self.maximum()))
+        return QSize(width, height)
 
 
 class Shape(object):
@@ -1625,6 +1641,50 @@ class LabelFile(object):
     @staticmethod
     def is_label_file(filename):
         return osp.splitext(filename)[1].lower() == LabelFile.suffix
+
+
+class EscapableQListWidget(QListWidget):
+    def keyPressEvent(self, event):
+        super(EscapableQListWidget, self).keyPressEvent(event)
+        if event.key() == Qt.Key_Escape:
+            self.clearSelection()
+
+
+class UniqueLabelQListWidget(EscapableQListWidget):
+    def mousePressEvent(self, event):
+        super(UniqueLabelQListWidget, self).mousePressEvent(event)
+        if not self.indexAt(event.pos()).isValid():
+            self.clearSelection()
+
+    def findItemByLabel(self, label):
+        for row in range(self.count()):
+            item = self.item(row)
+            if item.data(Qt.UserRole) == label:
+                return item
+
+    def createItemFromLabel(self, label):
+        if self.findItemByLabel(label):
+            raise ValueError("Item for label '{}' already exists".format(label))
+
+        item = QListWidgetItem()
+        item.setData(Qt.UserRole, label)
+        return item
+
+    def setItemLabel(self, item, label, color=None):
+        qlabel = QLabel()
+        if color is None:
+            qlabel.setText("{}".format(label))
+        else:
+            qlabel.setText(
+                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+                    html.escape(label), *color
+                )
+            )
+        qlabel.setAlignment(Qt.AlignBottom)
+
+        item.setSizeHint(qlabel.sizeHint())
+
+        self.setItemWidget(item, qlabel)
 
 
 class LabelQLineEdit(QLineEdit):
