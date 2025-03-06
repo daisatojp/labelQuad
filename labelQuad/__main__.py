@@ -94,21 +94,13 @@ class ZoomWidget(QSpinBox):
 
 
 class Shape(object):
-    # Render handles as squares
+
     P_SQUARE = 0
-
-    # Render handles as circles
     P_ROUND = 1
-
-    # Flag for the handles we would move if dragging
     MOVE_VERTEX = 0
-
-    # Flag for all other handles on the current shape
     NEAR_VERTEX = 1
-
     PEN_WIDTH = 2
 
-    # The following class variables influence the drawing of all shape objects.
     line_color = None
     fill_color = None
     select_line_color = None
@@ -187,7 +179,6 @@ class Shape(object):
             "polygon",
             "point",
             "line",
-            "circle",
             "linestrip",
             "points",
             "mask",
@@ -297,18 +288,7 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            if self.shape_type == "circle":
-                assert len(self.points) in [1, 2]
-                if len(self.points) == 2:
-                    raidus = distance(
-                        self._scale_point(self.points[0] - self.points[1])
-                    )
-                    line_path.addEllipse(
-                        self._scale_point(self.points[0]), raidus, raidus
-                    )
-                for i in range(len(self.points)):
-                    self.drawVertex(vrtx_path, i)
-            elif self.shape_type == "linestrip":
+            if self.shape_type == "linestrip":
                 line_path.moveTo(self._scale_point(self.points[0]))
                 for i, p in enumerate(self.points):
                     line_path.lineTo(self._scale_point(p))
@@ -408,15 +388,9 @@ class Shape(object):
         return self.makePath().contains(point)
 
     def makePath(self):
-        if self.shape_type == "circle":
-            path = QPainterPath()
-            if len(self.points) == 2:
-                raidus = distance(self.points[0] - self.points[1])
-                path.addEllipse(self.points[0], raidus, raidus)
-        else:
-            path = QPainterPath(self.points[0])
-            for p in self.points[1:]:
-                path.lineTo(p)
+        path = QPainterPath(self.points[0])
+        for p in self.points[1:]:
+            path.lineTo(p)
         return path
 
     def boundingRect(self):
@@ -484,7 +458,6 @@ class Canvas(QWidget):
             "crosshair",
             {
                 "polygon": False,
-                "circle": False,
                 "line": False,
                 "point": False,
                 "linestrip": False,
@@ -547,7 +520,6 @@ class Canvas(QWidget):
     def createMode(self, value):
         if value not in [
             "polygon",
-            "circle",
             "line",
             "point",
             "linestrip",
@@ -675,10 +647,6 @@ class Canvas(QWidget):
             if self.createMode in ["polygon", "linestrip"]:
                 self.line.points = [self.current[-1], pos]
                 self.line.point_labels = [1, 1]
-            elif self.createMode == "circle":
-                self.line.points = [self.current[0], pos]
-                self.line.point_labels = [1, 1]
-                self.line.shape_type = "circle"
             elif self.createMode == "line":
                 self.line.points = [self.current[0], pos]
                 self.line.point_labels = [1, 1]
@@ -827,8 +795,6 @@ class Canvas(QWidget):
                     if self.createMode == "point":
                         self.finalise()
                     else:
-                        if self.createMode == "circle":
-                            self.current.shape_type = "circle"
                         self.line.points = [pos, pos]
                         self.line.point_labels = [1, 1]
                         self.setHiding()
@@ -3054,7 +3020,6 @@ def get_default_config():
                 "  # show crosshair",
                 "  crosshair:",
                 "    polygon: false",
-                "    circle: false",
                 "    line: false",
                 "    point: false",
                 "    linestrip: false",
@@ -3080,7 +3045,6 @@ def get_default_config():
                 "  fit_width: Ctrl+Shift+F",
                 "",
                 "  create_polygon: Ctrl+N",
-                "  create_circle: null",
                 "  create_line: null",
                 "  create_point: null",
                 "  create_linestrip: null",
