@@ -1,17 +1,9 @@
-/.cache/
-/.pytest_cache/
-
-/build/
-/dist/
-/*.egg-info/
-
-*.py[cdo]
-
-.DS_Store
-.idea/
-
 .venv/
 .vscode/
+__pycache__/
+build/
+dist/
+pyinstaller/
 
 .env
 .settings.json
