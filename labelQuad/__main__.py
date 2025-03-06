@@ -50,6 +50,7 @@ MOVE_SPEED = 5.0
 
 
 class ToolBar(QToolBar):
+
     def __init__(self, title):
         super(ToolBar, self).__init__(title)
         layout = self.layout()
@@ -74,6 +75,7 @@ class ToolBar(QToolBar):
 
 
 class ZoomWidget(QSpinBox):
+
     def __init__(self, value=100):
         super(ZoomWidget, self).__init__()
         self.setButtonSymbols(QAbstractSpinBox.NoButtons)
@@ -504,7 +506,6 @@ class Canvas(QWidget):
                 "line": False,
                 "point": False,
                 "linestrip": False,
-                "ai_polygon": False,
                 "ai_mask": False,
             },
         )
@@ -570,7 +571,6 @@ class Canvas(QWidget):
             "line",
             "point",
             "linestrip",
-            "ai_polygon",
             "ai_mask",
         ]:
             raise ValueError("Unsupported createMode: %s" % value)
@@ -670,10 +670,7 @@ class Canvas(QWidget):
 
         # Polygon drawing.
         if self.drawing():
-            if self.createMode in ["ai_polygon", "ai_mask"]:
-                self.line.shape_type = "points"
-            else:
-                self.line.shape_type = self.createMode
+            self.line.shape_type = self.createMode
 
             self.overrideCursor(CURSOR_DRAW)
             if not self.current:
@@ -698,12 +695,6 @@ class Canvas(QWidget):
             if self.createMode in ["polygon", "linestrip"]:
                 self.line.points = [self.current[-1], pos]
                 self.line.point_labels = [1, 1]
-            elif self.createMode in ["ai_polygon", "ai_mask"]:
-                self.line.points = [self.current.points[-1], pos]
-                self.line.point_labels = [
-                    self.current.point_labels[-1],
-                    0 if is_shift_pressed else 1,
-                ]
             elif self.createMode == "rectangle":
                 self.line.points = [self.current[0], pos]
                 self.line.point_labels = [1, 1]
@@ -855,41 +846,19 @@ class Canvas(QWidget):
                         self.line[0] = self.current[-1]
                         if int(ev.modifiers()) == Qt.ControlModifier:
                             self.finalise()
-                    elif self.createMode in ["ai_polygon", "ai_mask"]:
-                        self.current.addPoint(
-                            self.line.points[1],
-                            label=self.line.point_labels[1],
-                        )
-                        self.line.points[0] = self.current.points[-1]
-                        self.line.point_labels[0] = self.current.point_labels[-1]
-                        if ev.modifiers() & Qt.ControlModifier:
-                            self.finalise()
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
                     self.current = Shape(
-                        shape_type="points"
-                        if self.createMode in ["ai_polygon", "ai_mask"]
-                        else self.createMode
+                        shape_type=self.createMode
                     )
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     if self.createMode == "point":
-                        self.finalise()
-                    elif (
-                        self.createMode in ["ai_polygon", "ai_mask"]
-                        and ev.modifiers() & Qt.ControlModifier
-                    ):
                         self.finalise()
                     else:
                         if self.createMode == "circle":
                             self.current.shape_type = "circle"
                         self.line.points = [pos, pos]
-                        if (
-                            self.createMode in ["ai_polygon", "ai_mask"]
-                            and is_shift_pressed
-                        ):
-                            self.line.point_labels = [0, 0]
-                        else:
-                            self.line.point_labels = [1, 1]
+                        self.line.point_labels = [1, 1]
                         self.setHiding()
                         self.drawingPolygon.emit(True)
                         self.update()
@@ -974,16 +943,13 @@ class Canvas(QWidget):
     def canCloseShape(self):
         return self.drawing() and (
             (self.current and len(self.current) > 2)
-            or self.createMode in ["ai_polygon", "ai_mask"]
         )
 
     def mouseDoubleClickEvent(self, ev):
         if self.double_click != "close":
             return
 
-        if (
-            self.createMode == "polygon" and self.canCloseShape()
-        ) or self.createMode in ["ai_polygon", "ai_mask"]:
+        if (self.createMode == "polygon" and self.canCloseShape()):
             self.finalise()
 
     def selectShapes(self, shapes):
@@ -1159,44 +1125,6 @@ class Canvas(QWidget):
             drawing_shape.addPoint(self.line[1])
             drawing_shape.fill = True
             drawing_shape.paint(p)
-        elif self.createMode == "ai_polygon" and self.current is not None:
-            drawing_shape = self.current.copy()
-            drawing_shape.addPoint(
-                point=self.line.points[1],
-                label=self.line.point_labels[1],
-            )
-            points = self._ai_model.predict_polygon_from_points(
-                points=[[point.x(), point.y()] for point in drawing_shape.points],
-                point_labels=drawing_shape.point_labels,
-            )
-            if len(points) > 2:
-                drawing_shape.setShapeRefined(
-                    shape_type="polygon",
-                    points=[QPointF(point[0], point[1]) for point in points],
-                    point_labels=[1] * len(points),
-                )
-                drawing_shape.fill = self.fillDrawing()
-                drawing_shape.selected = True
-                drawing_shape.paint(p)
-        elif self.createMode == "ai_mask" and self.current is not None:
-            drawing_shape = self.current.copy()
-            drawing_shape.addPoint(
-                point=self.line.points[1],
-                label=self.line.point_labels[1],
-            )
-            mask = self._ai_model.predict_mask_from_points(
-                points=[[point.x(), point.y()] for point in drawing_shape.points],
-                point_labels=drawing_shape.point_labels,
-            )
-            y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
-            drawing_shape.setShapeRefined(
-                shape_type="mask",
-                points=[QPointF(x1, y1), QPointF(x2, y2)],
-                point_labels=[1, 1],
-                mask=mask[y1 : y2 + 1, x1 : x2 + 1],
-            )
-            drawing_shape.selected = True
-            drawing_shape.paint(p)
 
         p.end()
 
@@ -1219,32 +1147,6 @@ class Canvas(QWidget):
 
     def finalise(self):
         assert self.current
-        if self.createMode == "ai_polygon":
-            # convert points to polygon by an AI model
-            assert self.current.shape_type == "points"
-            points = self._ai_model.predict_polygon_from_points(
-                points=[[point.x(), point.y()] for point in self.current.points],
-                point_labels=self.current.point_labels,
-            )
-            self.current.setShapeRefined(
-                points=[QPointF(point[0], point[1]) for point in points],
-                point_labels=[1] * len(points),
-                shape_type="polygon",
-            )
-        elif self.createMode == "ai_mask":
-            # convert points to mask by an AI model
-            assert self.current.shape_type == "points"
-            mask = self._ai_model.predict_mask_from_points(
-                points=[[point.x(), point.y()] for point in self.current.points],
-                point_labels=self.current.point_labels,
-            )
-            y1, x1, y2, x2 = imgviz.instances.masks_to_bboxes([mask])[0].astype(int)
-            self.current.setShapeRefined(
-                shape_type="mask",
-                points=[QPointF(x1, y1), QPointF(x2, y2)],
-                point_labels=[1, 1],
-                mask=mask[y1 : y2 + 1, x1 : x2 + 1],
-            )
         self.current.close()
 
         self.shapes.append(self.current)
@@ -1624,6 +1526,7 @@ class EscapableQListWidget(QListWidget):
 
 
 class UniqueLabelQListWidget(EscapableQListWidget):
+
     def mousePressEvent(self, event):
         super(UniqueLabelQListWidget, self).mousePressEvent(event)
         if not self.indexAt(event.pos()).isValid():
@@ -1661,6 +1564,7 @@ class UniqueLabelQListWidget(EscapableQListWidget):
 
 
 class LabelQLineEdit(QLineEdit):
+
     def setListWidget(self, list_widget):
         self.list_widget = list_widget
 
@@ -1672,6 +1576,7 @@ class LabelQLineEdit(QLineEdit):
 
 
 class HTMLDelegate(QStyledItemDelegate):
+
     def __init__(self, parent=None):
         super(HTMLDelegate, self).__init__()
         self.doc = QTextDocument(self)
@@ -1730,6 +1635,7 @@ class HTMLDelegate(QStyledItemDelegate):
 
 
 class StandardItemModel(QStandardItemModel):
+
     itemDropped = pyqtSignal()
 
     def removeRows(self, *args, **kwargs):
@@ -1739,6 +1645,7 @@ class StandardItemModel(QStandardItemModel):
 
 
 class LabelListWidgetItem(QStandardItem):
+
     def __init__(self, text=None, shape=None):
         super(LabelListWidgetItem, self).__init__()
         self.setText(text or "")
@@ -1766,6 +1673,7 @@ class LabelListWidgetItem(QStandardItem):
 
 
 class LabelListWidget(QListView):
+
     itemDoubleClicked = pyqtSignal(LabelListWidgetItem)
     itemSelectionChanged = pyqtSignal(list, list)
 
@@ -3181,7 +3089,6 @@ def get_default_config():
                 "    line: false",
                 "    point: false",
                 "    linestrip: false",
-                "    ai_polygon: false",
                 "    ai_mask: false",
                 "",
                 "shortcuts:",
