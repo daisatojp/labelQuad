@@ -185,7 +185,6 @@ class Shape(object):
             value = "polygon"
         if value not in [
             "polygon",
-            "rectangle",
             "point",
             "line",
             "circle",
@@ -298,18 +297,7 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            if self.shape_type in ["rectangle", "mask"]:
-                assert len(self.points) in [1, 2]
-                if len(self.points) == 2:
-                    rectangle = QRectF(
-                        self._scale_point(self.points[0]),
-                        self._scale_point(self.points[1]),
-                    )
-                    line_path.addRect(rectangle)
-                if self.shape_type == "rectangle":
-                    for i in range(len(self.points)):
-                        self.drawVertex(vrtx_path, i)
-            elif self.shape_type == "circle":
+            if self.shape_type == "circle":
                 assert len(self.points) in [1, 2]
                 if len(self.points) == 2:
                     raidus = distance(
@@ -420,11 +408,7 @@ class Shape(object):
         return self.makePath().contains(point)
 
     def makePath(self):
-        if self.shape_type in ["rectangle", "mask"]:
-            path = QPainterPath()
-            if len(self.points) == 2:
-                path.addRect(QRectF(self.points[0], self.points[1]))
-        elif self.shape_type == "circle":
+        if self.shape_type == "circle":
             path = QPainterPath()
             if len(self.points) == 2:
                 raidus = distance(self.points[0] - self.points[1])
@@ -484,7 +468,6 @@ class Canvas(QWidget):
 
     CREATE, EDIT = 0, 1
 
-    # polygon, rectangle, line, or point
     _createMode = "polygon"
 
     _fill_drawing = False
@@ -501,7 +484,6 @@ class Canvas(QWidget):
             "crosshair",
             {
                 "polygon": False,
-                "rectangle": True,
                 "circle": False,
                 "line": False,
                 "point": False,
@@ -519,7 +501,6 @@ class Canvas(QWidget):
         self.selectedShapesCopy = []
         # self.line represents:
         #   - createMode == 'polygon': edge from last point to current
-        #   - createMode == 'rectangle': diagonal line of the rectangle
         #   - createMode == 'line': the line
         #   - createMode == 'point': the point
         self.line = Shape()
@@ -566,7 +547,6 @@ class Canvas(QWidget):
     def createMode(self, value):
         if value not in [
             "polygon",
-            "rectangle",
             "circle",
             "line",
             "point",
@@ -695,10 +675,6 @@ class Canvas(QWidget):
             if self.createMode in ["polygon", "linestrip"]:
                 self.line.points = [self.current[-1], pos]
                 self.line.point_labels = [1, 1]
-            elif self.createMode == "rectangle":
-                self.line.points = [self.current[0], pos]
-                self.line.point_labels = [1, 1]
-                self.line.close()
             elif self.createMode == "circle":
                 self.line.points = [self.current[0], pos]
                 self.line.point_labels = [1, 1]
@@ -837,10 +813,6 @@ class Canvas(QWidget):
                         self.line[0] = self.current[-1]
                         if len(self.current.points) == 4:
                             self.finalise()
-                    elif self.createMode in ["rectangle", "circle", "line"]:
-                        assert len(self.current.points) == 1
-                        self.current.points = self.line.points
-                        self.finalise()
                     elif self.createMode == "linestrip":
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]
@@ -1298,8 +1270,6 @@ class Canvas(QWidget):
         self.current.restoreShapeRaw()
         if self.createMode in ["polygon", "linestrip"]:
             self.line.points = [self.current[-1], self.current[0]]
-        elif self.createMode in ["rectangle", "line", "circle"]:
-            self.current.points = self.current.points[0:1]
         elif self.createMode == "point":
             self.current = None
         self.drawingPolygon.emit(True)
@@ -3084,7 +3054,6 @@ def get_default_config():
                 "  # show crosshair",
                 "  crosshair:",
                 "    polygon: false",
-                "    rectangle: true",
                 "    circle: false",
                 "    line: false",
                 "    point: false",
@@ -3111,7 +3080,6 @@ def get_default_config():
                 "  fit_width: Ctrl+Shift+F",
                 "",
                 "  create_polygon: Ctrl+N",
-                "  create_rectangle: Ctrl+R",
                 "  create_circle: null",
                 "  create_line: null",
                 "  create_point: null",
