@@ -3,6 +3,7 @@ import base64
 import codecs
 import copy
 from functools import partial
+from glob import glob
 import html
 import math
 import os
@@ -2995,11 +2996,17 @@ class MainWindow(QMainWindow):
                 image_paths = [x for x in image_paths if re.search(pattern, x)]
             except re.error:
                 pass
+        qt_disconnect_signal_safely(
+            self.file_list.itemSelectionChanged,
+            self.__file_selection_changed)
         self.file_list.clear()
         for image_path in image_paths:
             item = QListWidgetItem(osp.basename(image_path))
             item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
             self.file_list.addItem(item)
+        qt_connect_signal_safely(
+            self.file_list.itemSelectionChanged,
+            self.__file_selection_changed)
         self.__refresh_file_check_state()
         self.__open_next()
 
@@ -3032,16 +3039,10 @@ class MainWindow(QMainWindow):
         return osp.join(self.annot_dir, filename)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
-        extensions = [
-            '.%s' % fmt.data().decode().lower()
-            for fmt in QImageReader.supportedImageFormats()]
-        images = []
-        for root, dirs, files in os.walk(dir_path):
-            for file in files:
-                if file.lower().endswith(tuple(extensions)):
-                    relativePath = os.path.normpath(osp.join(root, file))
-                    images.append(relativePath)
-        return natsort.os_sorted(images)
+        extensions = ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']
+        files = list_files_with_exts(dir_path, extensions)
+        files = [osp.basename(x) for x in files]
+        return natsort.os_sorted(files)
 
     def __new_action(
             self,
@@ -3395,6 +3396,34 @@ def distancetoline(point, line):
     if np.linalg.norm(p2 - p1) == 0:
         return np.linalg.norm(p3 - p1)
     return np.linalg.norm(np.cross(p2 - p1, p1 - p3)) / np.linalg.norm(p2 - p1)
+
+
+def list_files_with_exts(path: str, ext: str | list[str], recursive: bool = False) -> list[str]:
+    if recursive:
+        wildcard = osp.join('**', '*')
+    else:
+        wildcard = '*'
+    if type(ext) is str:
+        return glob(osp.join(path, f'{wildcard}{ext}'), recursive=recursive)
+    paths = []
+    for _ext in ext:
+        paths += glob(osp.join(path, f'{wildcard}{_ext}'), recursive=recursive)
+    return paths
+
+
+def qt_connect_signal_safely(signal, handler):
+    signal.connect(handler)
+
+
+def qt_disconnect_signal_safely(signal, handler=None):
+    try:
+        if handler is not None:
+            while True:
+                signal.disconnect(handler)
+        else:
+            signal.disconnect()
+    except TypeError:
+        pass
 
 
 def main():
