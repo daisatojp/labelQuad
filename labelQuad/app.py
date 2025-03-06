@@ -21,7 +21,6 @@ from loguru import logger
 import natsort
 import numpy as np
 import yaml
-import labelme
 import skimage.measure
 
 
@@ -571,36 +570,6 @@ class Canvas(QWidget):
         ]:
             raise ValueError("Unsupported createMode: %s" % value)
         self._createMode = value
-
-    def initializeAiModel(self, name):
-        if name not in [model.name for model in labelme.ai.MODELS]:
-            raise ValueError("Unsupported ai model: %s" % name)
-        model = [model for model in labelme.ai.MODELS if model.name == name][0]
-
-        if self._ai_model is not None and self._ai_model.name == model.name:
-            logger.debug("AI model is already initialized: %r" % model.name)
-        else:
-            logger.debug("Initializing AI model: %r" % model.name)
-
-            class LoggerIO:
-                def write(self, message: str):
-                    if message := message.strip():
-                        logger.debug(message)
-
-                def flush(self):
-                    pass
-
-            # NOTE: gdown.download uses sys.stderr, so redirect it to logger.debug
-            with contextlib.redirect_stderr(new_target=LoggerIO()):
-                self._ai_model = model()
-
-        if self.pixmap is None:
-            logger.warning("Pixmap is not set yet")
-            return
-
-        self._ai_model.set_image(
-            image=img_qt_to_arr(self.pixmap.toImage())
-        )
 
     def storeShapes(self):
         shapesBackup = []
@@ -2442,7 +2411,7 @@ class MainWindow(QMainWindow):
             self.file_search.setText(config['file_search'])
             self.__file_search_changed()
 
-        self.settings = QSettings('labelme', 'labelme')
+        self.settings = QSettings('labelQuad', 'labelQuad')
         self.recent_files = self.settings.value('recent_files', []) or []
         size = self.settings.value('window/size', QSize(600, 500))
         position = self.settings.value('window/position', QPoint(0, 0))
@@ -3124,8 +3093,8 @@ def get_default_config():
     with open(config_file) as f:
         config = yaml.safe_load(f)
 
-    # save default config to ~/.labelmerc
-    user_config_file = osp.join(osp.expanduser("~"), ".labelmerc")
+    # save default config to ~/.labelQuadrc
+    user_config_file = osp.join(osp.expanduser("~"), ".labelQuadrc")
     if not osp.exists(user_config_file):
         try:
             shutil.copy(config_file, user_config_file)
