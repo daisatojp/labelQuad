@@ -179,7 +179,6 @@ class Shape(object):
             "polygon",
             "point",
             "line",
-            "linestrip",
             "points",
             "mask",
         ]:
@@ -197,7 +196,7 @@ class Shape(object):
             self.point_labels.append(label)
 
     def canAddPoint(self):
-        return self.shape_type in ["polygon", "linestrip"]
+        return self.shape_type in ["polygon"]
 
     def popPoint(self):
         if self.points:
@@ -212,26 +211,11 @@ class Shape(object):
 
     def removePoint(self, i):
         if not self.canAddPoint():
-            logger.warning(
-                "Cannot remove point from: shape_type=%r",
-                self.shape_type,
-            )
+            logger.warning("Cannot remove point from: shape_type=%r", self.shape_type)
             return
 
         if self.shape_type == "polygon" and len(self.points) <= 3:
-            logger.warning(
-                "Cannot remove point from: shape_type=%r, len(points)=%d",
-                self.shape_type,
-                len(self.points),
-            )
-            return
-
-        if self.shape_type == "linestrip" and len(self.points) <= 2:
-            logger.warning(
-                "Cannot remove point from: shape_type=%r, len(points)=%d",
-                self.shape_type,
-                len(self.points),
-            )
+            logger.warning("Cannot remove point from: shape_type=%r, len(points)=%d", self.shape_type, len(self.points))
             return
 
         self.points.pop(i)
@@ -288,12 +272,7 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            if self.shape_type == "linestrip":
-                line_path.moveTo(self._scale_point(self.points[0]))
-                for i, p in enumerate(self.points):
-                    line_path.lineTo(self._scale_point(p))
-                    self.drawVertex(vrtx_path, i)
-            elif self.shape_type == "points":
+            if self.shape_type == "points":
                 assert len(self.points) == len(self.point_labels)
                 for i, point_label in enumerate(self.point_labels):
                     if point_label == 1:
@@ -460,7 +439,6 @@ class Canvas(QWidget):
                 "polygon": False,
                 "line": False,
                 "point": False,
-                "linestrip": False,
                 "ai_mask": False,
             },
         )
@@ -522,7 +500,6 @@ class Canvas(QWidget):
             "polygon",
             "line",
             "point",
-            "linestrip",
             "ai_mask",
         ]:
             raise ValueError("Unsupported createMode: %s" % value)
@@ -644,7 +621,7 @@ class Canvas(QWidget):
                 pos = self.current[0]
                 self.overrideCursor(CURSOR_POINT)
                 self.current.highlightVertex(0, Shape.NEAR_VERTEX)
-            if self.createMode in ["polygon", "linestrip"]:
+            if self.createMode in ["polygon"]:
                 self.line.points = [self.current[-1], pos]
                 self.line.point_labels = [1, 1]
             elif self.createMode == "line":
@@ -780,11 +757,6 @@ class Canvas(QWidget):
                         self.current.addPoint(self.line[1])
                         self.line[0] = self.current[-1]
                         if len(self.current.points) == 4:
-                            self.finalise()
-                    elif self.createMode == "linestrip":
-                        self.current.addPoint(self.line[1])
-                        self.line[0] = self.current[-1]
-                        if int(ev.modifiers()) == Qt.ControlModifier:
                             self.finalise()
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
@@ -1234,7 +1206,7 @@ class Canvas(QWidget):
         self.current = self.shapes.pop()
         self.current.setOpen()
         self.current.restoreShapeRaw()
-        if self.createMode in ["polygon", "linestrip"]:
+        if self.createMode in ["polygon"]:
             self.line.points = [self.current[-1], self.current[0]]
         elif self.createMode == "point":
             self.current = None
@@ -3022,7 +2994,6 @@ def get_default_config():
                 "    polygon: false",
                 "    line: false",
                 "    point: false",
-                "    linestrip: false",
                 "    ai_mask: false",
                 "",
                 "shortcuts:",
@@ -3047,7 +3018,6 @@ def get_default_config():
                 "  create_polygon: Ctrl+N",
                 "  create_line: null",
                 "  create_point: null",
-                "  create_linestrip: null",
                 "  edit_polygon: Ctrl+J",
                 "  delete_polygon: Delete",
                 "  duplicate_polygon: Ctrl+D",
