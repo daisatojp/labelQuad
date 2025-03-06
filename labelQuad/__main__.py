@@ -26,7 +26,6 @@ from loguru import logger
 import natsort
 import numpy as np
 import yaml
-import skimage.measure
 
 
 PIL.Image.MAX_IMAGE_PIXELS = None
@@ -171,7 +170,7 @@ class Shape(object):
     def shape_type(self, value):
         if value is None:
             value = "polygon"
-        if value not in ["polygon", "point", "line", "points"]:
+        if value not in ["polygon", "line", "points"]:
             raise ValueError("Unexpected shape_type: {}".format(value))
         self._shape_type = value
 
@@ -376,9 +375,7 @@ class Canvas(QWidget):
                 "Unexpected value for double_click event: {}".format(self.double_click)
             )
         self.num_backups = kwargs.pop("num_backups", 10)
-        self._crosshair = kwargs.pop(
-            "crosshair",
-            {"polygon": False, "line": False, "point": False})
+        self._crosshair = kwargs.pop("crosshair", {"polygon": False, "line": False})
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
         self.mode = self.EDIT
@@ -433,7 +430,7 @@ class Canvas(QWidget):
 
     @createMode.setter
     def createMode(self, value):
-        if value not in ["polygon", "line", "point"]:
+        if value not in ["polygon", "line"]:
             raise ValueError("Unsupported createMode: %s" % value)
         self._createMode = value
 
@@ -559,10 +556,6 @@ class Canvas(QWidget):
             elif self.createMode == "line":
                 self.line.points = [self.current[0], pos]
                 self.line.point_labels = [1, 1]
-                self.line.close()
-            elif self.createMode == "point":
-                self.line.points = [self.current[0]]
-                self.line.point_labels = [1]
                 self.line.close()
             assert len(self.line.points) == len(self.line.point_labels)
             self.repaint()
@@ -696,14 +689,11 @@ class Canvas(QWidget):
                         shape_type=self.createMode
                     )
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
-                    if self.createMode == "point":
-                        self.finalise()
-                    else:
-                        self.line.points = [pos, pos]
-                        self.line.point_labels = [1, 1]
-                        self.setHiding()
-                        self.drawingPolygon.emit(True)
-                        self.update()
+                    self.line.points = [pos, pos]
+                    self.line.point_labels = [1, 1]
+                    self.setHiding()
+                    self.drawingPolygon.emit(True)
+                    self.update()
             elif self.editing():
                 if self.selectedEdge() and ev.modifiers() == Qt.AltModifier:
                     self.addPointToEdge()
@@ -1048,9 +1038,6 @@ class Canvas(QWidget):
             nua = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)
             nub = (x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)
             if denom == 0:
-                # This covers two cases:
-                #   nua == nub == 0: Coincident
-                #   otherwise: Parallel
                 continue
             ua, ub = nua / denom, nub / denom
             if 0 <= ua <= 1 and 0 <= ub <= 1:
@@ -1060,8 +1047,6 @@ class Canvas(QWidget):
                 d = distance(m - QPointF(x2, y2))
                 yield d, i, (x, y)
 
-    # These two, along with a call to adjustSize are required for the
-    # scroll area.
     def sizeHint(self):
         return self.minimumSizeHint()
 
@@ -1140,8 +1125,6 @@ class Canvas(QWidget):
         self.current.restoreShapeRaw()
         if self.createMode in ["polygon"]:
             self.line.points = [self.current[-1], self.current[0]]
-        elif self.createMode == "point":
-            self.current = None
         self.drawingPolygon.emit(True)
 
     def undoLastPoint(self):
