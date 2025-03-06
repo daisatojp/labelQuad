@@ -2766,7 +2766,10 @@ class MainWindow(QMainWindow):
         return osp.join(self.annot_dir, filename)
 
     def __scan_all_images(self, dir_path: str) -> list[str]:
-        extensions = ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']
+        if os.name == 'nt':
+            extensions = ['.jpg', '.jpeg', '.png']
+        else:
+            extensions = ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']
         files = list_files_with_exts(dir_path, extensions)
         files = [osp.basename(x) for x in files]
         return natsort.os_sorted(files)
