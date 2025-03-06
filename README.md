@@ -2,6 +2,10 @@
 
 Labeling tool for images with quadrangle.
 
+<h1 align="center">
+  <img src="sample/screenshot.png"><br/>labelQuad
+</h1>
+
 ## Requirements
 
 - Python 3.11
@@ -37,3 +41,7 @@ pip install Pillow `
             scikit-image
 python labelQuad
 ```
+
+## Acknowledgment
+
+- [labelme](https://github.com/wkentaro/labelme)
