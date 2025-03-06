@@ -2,7 +2,9 @@
 
 Labeling tool for images with quadrangle.
 
-<center><img src="sample/screenshot.png"></center>
+<div align="center">
+![screenshot](sample/screenshot.png)
+</div>
 
 ## Requirements
 
