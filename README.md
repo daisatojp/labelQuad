@@ -4,16 +4,21 @@ Labeling tool for images with quadrangle.
 
 ## Requirements
 
-- Python 3.11 or above
+- Python 3.11
 
 ## Linux
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install PyQt5==5.15.11 \
+pip install Pillow \
+            PyQt5==5.15.11 \
             PyQt5-Qt5==5.15.16 \
-            loguru
+            imgviz \
+            loguru \
+            natsort \
+            pyyaml \
+            scikit-image
 python labelQuad
 ```
 
@@ -22,8 +27,13 @@ python labelQuad
 ```
 python -m venv .venv
 .\.venv\Scripts\activate
-pip install PyQt5==5.15.11 \
-            PyQt5-Qt5==5.15.16 \
-            loguru
+pip install Pillow `
+            PyQt5 `
+            PyQt5-Qt5 `
+            imgviz `
+            loguru `
+            natsort `
+            pyyaml `
+            scikit-image
 python labelQuad
 ```
