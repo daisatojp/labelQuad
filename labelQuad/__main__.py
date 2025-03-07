@@ -1569,17 +1569,17 @@ class LabelListWidget(QListView):
 
 
 class LabelDialog(QDialog):
+
     def __init__(
-        self,
-        text="Enter object label",
-        parent=None,
-        labels=None,
-        sort_labels=True,
-        show_text_field=True,
-        completion="startswith",
-        fit_to_content=None,
-        flags=None,
-    ):
+            self,
+            text="Enter object label",
+            parent=None,
+            labels=None,
+            sort_labels=True,
+            show_text_field=True,
+            completion="startswith",
+            fit_to_content=None,
+            flags=None):
         if fit_to_content is None:
             fit_to_content = {"row": False, "column": True}
         self._fit_to_content = fit_to_content
@@ -1593,9 +1593,7 @@ class LabelDialog(QDialog):
             self.edit.textChanged.connect(self.updateFlags)
         self.edit_group_id = QLineEdit()
         self.edit_group_id.setPlaceholderText("Group ID")
-        self.edit_group_id.setValidator(
-            QRegExpValidator(QRegExp(r"\d*"), None)
-        )
+        self.edit_group_id.setValidator(QRegExpValidator(QRegExp(r"\d*"), None))
         layout = QVBoxLayout()
         if show_text_field:
             layout_edit = QHBoxLayout()
@@ -1799,20 +1797,15 @@ class BrightnessContrastDialog(QDialog):
             title_label = QLabel(self.tr(title))
             title_label.setFixedWidth(75)
             layout.addWidget(title_label)
-            #
             slider = QSlider(Qt.Horizontal)
             slider.setRange(0, 3 * self._base_value)
             slider.setValue(self._base_value)
             layout.addWidget(slider)
-            #
             value_label = QLabel(f"{slider.value() / self._base_value:.2f}")
             value_label.setAlignment(Qt.AlignRight)
             layout.addWidget(value_label)
-            #
             slider.valueChanged.connect(self.onNewValue)
-            slider.valueChanged.connect(
-                lambda: value_label.setText(f"{slider.value() / self._base_value:.2f}")
-            )
+            slider.valueChanged.connect(lambda: value_label.setText(f"{slider.value() / self._base_value:.2f}"))
             layouts[title] = layout
             sliders[title] = slider
 
@@ -1833,16 +1826,12 @@ class BrightnessContrastDialog(QDialog):
     def onNewValue(self, _):
         brightness = self.slider_brightness.value() / self._base_value
         contrast = self.slider_contrast.value() / self._base_value
-
         img = self.img
         if brightness != 1:
             img = PIL.ImageEnhance.Brightness(img).enhance(brightness)
         if contrast != 1:
             img = PIL.ImageEnhance.Contrast(img).enhance(contrast)
-
-        qimage = QImage(
-            img.tobytes(), img.width, img.height, img.width * 3, QImage.Format_RGB888
-        )
+        qimage = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format_RGB888)
         self.callback(qimage)
 
 
@@ -1984,23 +1973,23 @@ class MainWindow(QMainWindow):
 
         self.action_quit = self.__new_action(self.tr('&Quit'), slot=self.close, shortcut=shortcuts['quit'], icon='quit', tip=self.tr('Quit application'))
         self.action_open_image_dir = self.__new_action(self.tr('Open Image Dir'), slot=self.__open_image_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
-        self.action_open_annot_dir = self.__new_action(self.tr('Open Annot Dir'), slot=self.__open_annot_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
+        self.action_open_annot_dir = self.__new_action(self.tr('Open Label Dir'), slot=self.__open_annot_dir_dialog, icon='open', tip=self.tr('Open Image Dir'))
         self.action_open_next = self.__new_action(self.tr('&Next Image'), slot=self.__open_next, shortcut=shortcuts['open_next'], icon='next', tip=self.tr('Open next (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_open_prev = self.__new_action(self.tr('&Prev Image'), slot=self.__open_prev, shortcut=shortcuts['open_prev'], icon='prev', tip=self.tr('Open prev (hold Ctl+Shift to copy labels)'), enabled=False)
         self.action_save = self.__new_action(self.tr('&Save\n'), slot=self.__save, shortcut=shortcuts['save'], icon='save', tip=self.tr('Save labels to file'), enabled=False)
         self.action_save_auto = self.__new_action(self.tr('Save &Automatically'), slot=lambda x: self.action_save_auto.setChecked(x), icon='save', tip=self.tr('Save automatically'), checkable=True, enabled=True)
         self.action_save_auto.setChecked(self._config['auto_save'])
         self.action_close = self.__new_action(self.tr('&Close'), slot=self.__close_file, shortcut=shortcuts['close'], icon='close', tip=self.tr('Close current file'))
-        self.action_create_mode = self.__new_action(self.tr('Create Polygons'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing polygons'), enabled=False)
-        self.action_edit_mode = self.__new_action(self.tr('Edit Polygons'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected polygons'), enabled=False)
-        self.action_delete = self.__new_action(self.tr('Delete Polygons'), slot=self.__delete_selected_quad, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected polygons'), enabled=False)
-        self.action_copy = self.__new_action(self.tr('Copy Polygons'), slot=self.__copy_selected_quad, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected polygons to clipboard'), enabled=False)
-        self.action_paste = self.__new_action(self.tr('Paste Polygons'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied polygons'), enabled=False)
+        self.action_create_mode = self.__new_action(self.tr('Create Quad'), slot=partial(self.__toggle_draw_mode, False), shortcut=shortcuts['create_polygon'], icon='objects', tip=self.tr('Start drawing quad'), enabled=False)
+        self.action_edit_mode = self.__new_action(self.tr('Edit Quad'), slot=self.__set_edit_mode, shortcut=shortcuts['edit_polygon'], icon='edit', tip=self.tr('Move and edit the selected quad'), enabled=False)
+        self.action_delete = self.__new_action(self.tr('Delete Quad'), slot=self.__delete_selected_quad, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected quad'), enabled=False)
+        self.action_copy = self.__new_action(self.tr('Copy Quad'), slot=self.__copy_selected_quad, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected quad to clipboard'), enabled=False)
+        self.action_paste = self.__new_action(self.tr('Paste Quad'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied quad'), enabled=False)
         self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
         self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.__undo_shape_edit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
-        self.action_hide_all = self.__new_action(self.tr('&Hide\nPolygons'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all polygons'), enabled=False)
-        self.action_show_all = self.__new_action(self.tr('&Show\nPolygons'), slot=partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all polygons'), enabled=False)
-        self.action_toggle_all = self.__new_action(self.tr('&Toggle\nPolygons'), slot=partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all polygons'), enabled=False)
+        self.action_hide_all = self.__new_action(self.tr('&Hide\nQuad'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all quad'), enabled=False)
+        self.action_show_all = self.__new_action(self.tr('&Show\nQuad'), slot=partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all quad'), enabled=False)
+        self.action_toggle_all = self.__new_action(self.tr('&Toggle\nQuad'), slot=partial(self.__toggle_polygons, None), shortcut=shortcuts['toggle_all_polygons'], icon='eye', tip=self.tr('Toggle all quad'), enabled=False)
 
         self.zoom_widget = ZoomWidget()
         zoom_label = QLabel(self.tr('Zoom'))
