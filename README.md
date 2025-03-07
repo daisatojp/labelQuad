@@ -3,7 +3,7 @@
 Labeling tool for images with quadrangle.
 
 <div align="center">
-  <img src="sample/screenshot.png">
+  <img src="sample/screenshot.jpg">
 </div>
 
 ## Requirements
