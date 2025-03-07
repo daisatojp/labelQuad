@@ -116,10 +116,8 @@ class Shape(object):
             line_color=None,
             shape_type=None,
             flags=None,
-            group_id=None,
             description=None):
         self.label = label
-        self.group_id = group_id
         self.points = []
         self.point_labels = []
         self.shape_type = shape_type
@@ -142,9 +140,6 @@ class Shape(object):
         self._closed = False
 
         if line_color is not None:
-            # Override the class line_color attribute
-            # with an object attribute. Currently this
-            # is used for drawing the pending line a different color.
             self.line_color = line_color
 
     def _scale_point(self, point: QPointF) -> QPointF:
@@ -1228,7 +1223,6 @@ class LabelFile(object):
         shape_keys = [
             "label",
             "points",
-            "group_id",
             "shape_type",
             "flags",
             "description"
@@ -1257,7 +1251,6 @@ class LabelFile(object):
                     shape_type=s.get("shape_type", "polygon"),
                     flags=s.get("flags", {}),
                     description=s.get("description"),
-                    group_id=s.get("group_id"),
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
                 for s in data["shapes"]
@@ -1591,15 +1584,9 @@ class LabelDialog(QDialog):
         self.edit.editingFinished.connect(self.postProcess)
         if flags:
             self.edit.textChanged.connect(self.updateFlags)
-        self.edit_group_id = QLineEdit()
-        self.edit_group_id.setPlaceholderText("Group ID")
-        self.edit_group_id.setValidator(QRegExpValidator(QRegExp(r"\d*"), None))
         layout = QVBoxLayout()
         if show_text_field:
-            layout_edit = QHBoxLayout()
-            layout_edit.addWidget(self.edit, 6)
-            layout_edit.addWidget(self.edit_group_id, 2)
-            layout.addLayout(layout_edit)
+            layout.addWidget(self.edit)
         # buttons
         self.buttonBox = bb = QDialogButtonBox(
             QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
@@ -1731,13 +1718,7 @@ class LabelDialog(QDialog):
             flags[item.text()] = item.isChecked()
         return flags
 
-    def getGroupId(self):
-        group_id = self.edit_group_id.text()
-        if group_id:
-            return int(group_id)
-        return None
-
-    def popUp(self, text=None, move=True, flags=None, group_id=None, description=None):
+    def popUp(self, text=None, move=True, flags=None, description=None):
         if self._fit_to_content["row"]:
             self.labelList.setMinimumHeight(
                 self.labelList.sizeHintForRow(0) * self.labelList.count() + 2
@@ -1757,10 +1738,6 @@ class LabelDialog(QDialog):
             self.resetFlags(text)
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
-        if group_id is None:
-            self.edit_group_id.clear()
-        else:
-            self.edit_group_id.setText(str(group_id))
         items = self.labelList.findItems(text, Qt.MatchFixedString)
         if items:
             if len(items) != 1:
@@ -1775,7 +1752,6 @@ class LabelDialog(QDialog):
             return (
                 self.edit.text(),
                 self.getFlags(),
-                self.getGroupId(),
                 self.editDescription.toPlainText(),
             )
         else:
@@ -1887,7 +1863,6 @@ class MainWindow(QMainWindow):
             show_text_field=self._config['show_label_text_field'],
             completion=self._config['label_completion'],
             fit_to_content=self._config['fit_to_content'])
-        self.label_dialog.edit_group_id.setDisabled(True)
         self.label_dialog.editDescription.setDisabled(True)
 
         self.label_list = UniqueLabelQListWidget()
@@ -2368,7 +2343,7 @@ class MainWindow(QMainWindow):
             return
         item = items[0]
         quad: Shape = items[0].shape()
-        text, _, _, _ = self.label_dialog.popUp(text=quad.label)
+        text, _, _ = self.label_dialog.popUp(text=quad.label)
         if text is None:
             return
         self.canvas.storeShapes()
@@ -2498,7 +2473,7 @@ class MainWindow(QMainWindow):
             text = items[0].data(Qt.UserRole)
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text, _, _, _ = self.label_dialog.popUp(text)
+            text, _, _ = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text:
