@@ -2193,6 +2193,11 @@ class MainWindow(QMainWindow):
     def __save(self) -> None:
         if self.image_path is None:
             return
+        if self.annot_dir is None:
+            self.__error_message(
+                self.tr(f'Error saving file'),
+                self.tr(f'Label directory is not set'))
+            return
         image_path = self.image_path
         annot_path = osp.splitext(osp.basename(image_path))[0] + '.json'
         annot_path = osp.join(self.annot_dir, annot_path)
@@ -2643,15 +2648,17 @@ class MainWindow(QMainWindow):
         self.__import_dir_images(dir_path)
 
     def __open_annot_dir_dialog(self) -> None:
-        if not self.__may_continue():
-            return
+        if self.annot_dir is not None:
+            if not self.__may_continue():
+                return
         dir_path = '.'
         if self.image_dir and osp.exists(self.image_dir):
             dir_path = self.image_dir
         self.annot_dir = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
             QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
-        self.__load()
+        if osp.exists(self.__current_annot_path()):
+            self.__load()
         self.__refresh_file_check_state()
 
     def __import_dir_images(self, dirpath: str, pattern: Optional[str] = None) -> None:
