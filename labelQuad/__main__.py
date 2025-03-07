@@ -115,8 +115,7 @@ class Shape(object):
             label=None,
             line_color=None,
             shape_type=None,
-            flags=None,
-            description=None):
+            flags=None):
         self.label = label
         self.points = []
         self.point_labels = []
@@ -127,7 +126,6 @@ class Shape(object):
         self.fill = False
         self.selected = False
         self.flags = flags
-        self.description = description
         self.other_data = {}
 
         self._highlightIndex = None
@@ -1224,9 +1222,7 @@ class LabelFile(object):
             "label",
             "points",
             "shape_type",
-            "flags",
-            "description"
-        ]
+            "flags"]
         try:
             with open(filename, "r") as f:
                 data = json.load(f)
@@ -1250,7 +1246,6 @@ class LabelFile(object):
                     points=s["points"],
                     shape_type=s.get("shape_type", "polygon"),
                     flags=s.get("flags", {}),
-                    description=s.get("description"),
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
                 for s in data["shapes"]
@@ -1624,11 +1619,6 @@ class LabelDialog(QDialog):
         self.resetFlags()
         layout.addItem(self.flagsLayout)
         self.edit.textChanged.connect(self.updateFlags)
-        # text edit
-        self.editDescription = QTextEdit()
-        self.editDescription.setPlaceholderText("Label description")
-        self.editDescription.setFixedHeight(50)
-        layout.addWidget(self.editDescription)
         self.setLayout(layout)
         # completion
         completer = QCompleter()
@@ -1718,20 +1708,15 @@ class LabelDialog(QDialog):
             flags[item.text()] = item.isChecked()
         return flags
 
-    def popUp(self, text=None, move=True, flags=None, description=None):
+    def popUp(self, text=None, move=True, flags=None):
         if self._fit_to_content["row"]:
             self.labelList.setMinimumHeight(
-                self.labelList.sizeHintForRow(0) * self.labelList.count() + 2
-            )
+                self.labelList.sizeHintForRow(0) * self.labelList.count() + 2)
         if self._fit_to_content["column"]:
             self.labelList.setMinimumWidth(self.labelList.sizeHintForColumn(0) + 2)
         # if text is None, the previous label in self.edit is kept
         if text is None:
             text = self.edit.text()
-        # description is always initialized by empty text c.f., self.edit.text
-        if description is None:
-            description = ""
-        self.editDescription.setPlainText(description)
         if flags:
             self.setFlags(flags)
         else:
@@ -1749,13 +1734,9 @@ class LabelDialog(QDialog):
         if move:
             self.move(QCursor.pos())
         if self.exec_():
-            return (
-                self.edit.text(),
-                self.getFlags(),
-                self.editDescription.toPlainText(),
-            )
+            return self.edit.text(), self.getFlags()
         else:
-            return None, None, None, None
+            return None, None
 
 
 class BrightnessContrastDialog(QDialog):
@@ -1863,7 +1844,6 @@ class MainWindow(QMainWindow):
             show_text_field=self._config['show_label_text_field'],
             completion=self._config['label_completion'],
             fit_to_content=self._config['fit_to_content'])
-        self.label_dialog.editDescription.setDisabled(True)
 
         self.label_list = UniqueLabelQListWidget()
         if self._config['labels']:
@@ -2343,7 +2323,7 @@ class MainWindow(QMainWindow):
             return
         item = items[0]
         quad: Shape = items[0].shape()
-        text, _, _ = self.label_dialog.popUp(text=quad.label)
+        text, _ = self.label_dialog.popUp(text=quad.label)
         if text is None:
             return
         self.canvas.storeShapes()
@@ -2473,7 +2453,7 @@ class MainWindow(QMainWindow):
             text = items[0].data(Qt.UserRole)
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text, _, _ = self.label_dialog.popUp(text)
+            text, _ = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text:
