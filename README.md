@@ -21,8 +21,7 @@ pip install Pillow \
             imgviz \
             loguru \
             natsort \
-            pyyaml \
-            scikit-image
+            pyyaml
 python labelQuad
 ```
 
@@ -37,8 +36,7 @@ pip install Pillow `
             imgviz `
             loguru `
             natsort `
-            pyyaml `
-            scikit-image
+            pyyaml
 python labelQuad
 ```
 
