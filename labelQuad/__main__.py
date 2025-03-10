@@ -356,8 +356,6 @@ class Canvas(QWidget):
 
     CREATE, EDIT = 0, 1
 
-    _createMode = "polygon"
-
     _fill_drawing = False
 
     def __init__(self, *args, **kwargs):
@@ -366,7 +364,7 @@ class Canvas(QWidget):
         if self.double_click not in [None, "close"]:
             raise ValueError("Unexpected value for double_click event: {}".format(self.double_click))
         self.num_backups = kwargs.pop("num_backups", 10)
-        self._crosshair = kwargs.pop("crosshair", {"polygon": False, "line": False})
+        self._crosshair = kwargs.pop("crosshair", {"polygon": False})
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
         self.mode = self.EDIT
@@ -410,16 +408,6 @@ class Canvas(QWidget):
 
     def setFillDrawing(self, value):
         self._fill_drawing = value
-
-    @property
-    def createMode(self):
-        return self._createMode
-
-    @createMode.setter
-    def createMode(self, value):
-        if value not in ["polygon", "line"]:
-            raise ValueError("Unsupported createMode: %s" % value)
-        self._createMode = value
 
     def storeShapes(self):
         shapesBackup = []
@@ -511,11 +499,9 @@ class Canvas(QWidget):
         self.prevMovePoint = pos
         self.restoreCursor()
 
-        is_shift_pressed = ev.modifiers() & Qt.ShiftModifier
-
         # Polygon drawing.
         if self.drawing():
-            self.line.shape_type = self.createMode
+            self.line.shape_type = 'polygon'
 
             self.overrideCursor(CURSOR_DRAW)
             if not self.current:
@@ -529,7 +515,6 @@ class Canvas(QWidget):
             elif (
                 self.snapping
                 and len(self.current) > 1
-                and self.createMode == "polygon"
                 and self.closeEnough(pos, self.current[0])
             ):
                 # Attract line to starting point and
@@ -537,13 +522,8 @@ class Canvas(QWidget):
                 pos = self.current[0]
                 self.overrideCursor(CURSOR_POINT)
                 self.current.highlightVertex(0, Shape.NEAR_VERTEX)
-            if self.createMode in ["polygon"]:
-                self.line.points = [self.current[-1], pos]
-                self.line.point_labels = [1, 1]
-            elif self.createMode == "line":
-                self.line.points = [self.current[0], pos]
-                self.line.point_labels = [1, 1]
-                self.line.close()
+            self.line.points = [self.current[-1], pos]
+            self.line.point_labels = [1, 1]
             assert len(self.line.points) == len(self.line.point_labels)
             self.repaint()
             self.current.highlightClear()
@@ -664,17 +644,13 @@ class Canvas(QWidget):
         if ev.button() == Qt.LeftButton:
             if self.drawing():
                 if self.current:
-                    # Add point to existing shape.
-                    if self.createMode == "polygon":
-                        self.current.addPoint(self.line[1])
-                        self.line[0] = self.current[-1]
-                        if len(self.current.points) == 4:
-                            self.finalise()
+                    self.current.addPoint(self.line[1])
+                    self.line[0] = self.current[-1]
+                    if len(self.current.points) == 4:
+                        self.finalise()
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
-                    self.current = Shape(
-                        shape_type=self.createMode
-                    )
+                    self.current = Shape(shape_type='polygon')
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     self.line.points = [pos, pos]
                     self.line.point_labels = [1, 1]
@@ -759,15 +735,12 @@ class Canvas(QWidget):
         self._hideBackround = self.hideBackround if enable else False
 
     def canCloseShape(self):
-        return self.drawing() and (
-            (self.current and len(self.current) > 2)
-        )
+        return self.drawing() and (self.current and len(self.current) > 2)
 
     def mouseDoubleClickEvent(self, ev):
         if self.double_click != "close":
             return
-
-        if (self.createMode == "polygon" and self.canCloseShape()):
+        if self.canCloseShape():
             self.finalise()
 
     def selectShapes(self, shapes):
@@ -895,7 +868,7 @@ class Canvas(QWidget):
 
         # draw crosshair
         if (
-            self._crosshair[self._createMode]
+            self._crosshair['polygon']
             and self.drawing()
             and self.prevMovePoint
             and not self.outOfPixmap(self.prevMovePoint)
@@ -929,7 +902,6 @@ class Canvas(QWidget):
 
         if (
             self.fillDrawing()
-            and self.createMode == "polygon"
             and self.current is not None
             and len(self.current.points) >= 2
         ):
@@ -1109,8 +1081,7 @@ class Canvas(QWidget):
         self.current = self.shapes.pop()
         self.current.setOpen()
         self.current.restoreShapeRaw()
-        if self.createMode in ["polygon"]:
-            self.line.points = [self.current[-1], self.current[0]]
+        self.line.points = [self.current[-1], self.current[0]]
         self.drawingPolygon.emit(True)
 
     def undoLastPoint(self):
@@ -2285,7 +2256,6 @@ class MainWindow(QMainWindow):
 
     def __toggle_draw_mode(self, edit: bool = True) -> None:
         self.canvas.setEditing(edit)
-        self.canvas.createMode = 'polygon'
         self.action_create_mode.setEnabled(edit)
         self.action_edit_mode.setEnabled(not edit)
 
