@@ -364,9 +364,7 @@ class Canvas(QWidget):
         self.epsilon = kwargs.pop("epsilon", 10.0)
         self.double_click = kwargs.pop("double_click", "close")
         if self.double_click not in [None, "close"]:
-            raise ValueError(
-                "Unexpected value for double_click event: {}".format(self.double_click)
-            )
+            raise ValueError("Unexpected value for double_click event: {}".format(self.double_click))
         self.num_backups = kwargs.pop("num_backups", 10)
         self._crosshair = kwargs.pop("crosshair", {"polygon": False, "line": False})
         super(Canvas, self).__init__(*args, **kwargs)
@@ -375,12 +373,8 @@ class Canvas(QWidget):
         self.shapes = []
         self.shapesBackups = []
         self.current = None
-        self.selectedShapes = []  # save the selected shapes here
+        self.selectedShapes = []
         self.selectedShapesCopy = []
-        # self.line represents:
-        #   - createMode == 'polygon': edge from last point to current
-        #   - createMode == 'line': the line
-        #   - createMode == 'point': the point
         self.line = Shape()
         self.prevPoint = QPoint()
         self.prevMovePoint = QPoint()
@@ -738,21 +732,20 @@ class Canvas(QWidget):
 
             self.movingShape = False
 
-    def endMove(self, copy):
-        assert self.selectedShapes and self.selectedShapesCopy
-        assert len(self.selectedShapesCopy) == len(self.selectedShapes)
-        if copy:
-            for i, shape in enumerate(self.selectedShapesCopy):
-                self.shapes.append(shape)
-                self.selectedShapes[i].selected = False
-                self.selectedShapes[i] = shape
-        else:
-            for i, shape in enumerate(self.selectedShapesCopy):
-                self.selectedShapes[i].points = shape.points
+    def end_copy_move(self) -> None:
+        if (not (self.selectedShapes and self.selectedShapesCopy)) or \
+           (not (len(self.selectedShapesCopy) == len(self.selectedShapes))):
+            # something wrong
+            self.selectedShapes = []
+            self.selectedShapesCopy = []
+            return
+        for i, shape in enumerate(self.selectedShapesCopy):
+            self.shapes.append(shape)
+            self.selectedShapes[i].selected = False
+            self.selectedShapes[i] = shape
         self.selectedShapesCopy = []
         self.repaint()
         self.storeShapes()
-        return True
 
     def hideBackroundShapes(self, value):
         self.hideBackround = value
@@ -2630,7 +2623,7 @@ class MainWindow(QMainWindow):
         return QMessageBox.critical(self, title, f'<p><b>{title}</b></p>{message}')
 
     def __copy_quad(self) -> None:
-        self.canvas.endMove(copy=True)
+        self.canvas.end_copy_move()
         for quad in self.canvas.selectedShapes:
             self.__add_quad(quad)
         self.quad_list.clearSelection()
