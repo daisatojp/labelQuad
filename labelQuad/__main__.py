@@ -79,9 +79,9 @@ class ZoomWidget(QSpinBox):
         super(ZoomWidget, self).__init__()
         self.setButtonSymbols(QAbstractSpinBox.NoButtons)
         self.setRange(1, 1000)
-        self.setSuffix(" %")
+        self.setSuffix(' %')
         self.setValue(value)
-        self.setToolTip("Zoom Level")
+        self.setToolTip('Zoom Level')
         self.setStatusTip(self.toolTip())
         self.setAlignment(Qt.AlignCenter)
 
@@ -162,9 +162,9 @@ class Shape(object):
     @shape_type.setter
     def shape_type(self, value):
         if value is None:
-            value = "polygon"
-        if value not in ["polygon", "line", "points"]:
-            raise ValueError("Unexpected shape_type: {}".format(value))
+            value = 'polygon'
+        if value not in ['polygon', 'line', 'points']:
+            raise ValueError('Unexpected shape_type: {}'.format(value))
         self._shape_type = value
 
     def close(self):
@@ -178,7 +178,7 @@ class Shape(object):
             self.point_labels.append(label)
 
     def canAddPoint(self):
-        return self.shape_type in ["polygon"]
+        return self.shape_type in ['polygon']
 
     def popPoint(self):
         if self.points:
@@ -193,11 +193,11 @@ class Shape(object):
 
     def removePoint(self, i):
         if not self.canAddPoint():
-            logger.warning("Cannot remove point from: shape_type=%r", self.shape_type)
+            logger.warning('Cannot remove point from: shape_type=%r', self.shape_type)
             return
 
-        if self.shape_type == "polygon" and len(self.points) <= 3:
-            logger.warning("Cannot remove point from: shape_type=%r, len(points)=%d", self.shape_type, len(self.points))
+        if self.shape_type == 'polygon' and len(self.points) <= 3:
+            logger.warning('Cannot remove point from: shape_type=%r, len(points)=%d', self.shape_type, len(self.points))
             return
 
         self.points.pop(i)
@@ -224,7 +224,7 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            if self.shape_type == "points":
+            if self.shape_type == 'points':
                 assert len(self.points) == len(self.point_labels)
                 for i, point_label in enumerate(self.point_labels):
                     if point_label == 1:
@@ -268,10 +268,10 @@ class Shape(object):
         elif shape == self.P_ROUND:
             path.addEllipse(point, d / 2.0, d / 2.0)
         else:
-            assert False, "unsupported vertex shape"
+            assert False, 'unsupported vertex shape'
 
     def nearestVertex(self, point, epsilon):
-        min_distance = float("inf")
+        min_distance = float('inf')
         min_i = None
         point = QPointF(point.x() * self.scale, point.y() * self.scale)
         for i, p in enumerate(self.points):
@@ -283,7 +283,7 @@ class Shape(object):
         return min_i
 
     def nearestEdge(self, point, epsilon):
-        min_distance = float("inf")
+        min_distance = float('inf')
         post_i = None
         point = QPointF(point.x() * self.scale, point.y() * self.scale)
         for i in range(len(self.points)):
@@ -359,12 +359,12 @@ class Canvas(QWidget):
     _fill_drawing = False
 
     def __init__(self, *args, **kwargs):
-        self.epsilon = kwargs.pop("epsilon", 10.0)
-        self.double_click = kwargs.pop("double_click", "close")
-        if self.double_click not in [None, "close"]:
-            raise ValueError("Unexpected value for double_click event: {}".format(self.double_click))
-        self.num_backups = kwargs.pop("num_backups", 10)
-        self._crosshair = kwargs.pop("crosshair", {"polygon": False})
+        self.epsilon = kwargs.pop('epsilon', 10.0)
+        self.double_click = kwargs.pop('double_click', 'close')
+        if self.double_click not in [None, 'close']:
+            raise ValueError('Unexpected value for double_click event: {}'.format(self.double_click))
+        self.num_backups = kwargs.pop('num_backups', 10)
+        self._crosshair = kwargs.pop('crosshair', {'polygon': False})
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
         self.mode = self.EDIT
@@ -557,7 +557,7 @@ class Canvas(QWidget):
         # - Highlight shapes
         # - Highlight vertex
         # Update shape/vertex fill and tooltip value accordingly.
-        self.setToolTip(self.tr("Image"))
+        self.setToolTip(self.tr('Image'))
         for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
@@ -574,8 +574,8 @@ class Canvas(QWidget):
                 self.overrideCursor(CURSOR_POINT)
                 self.setToolTip(
                     self.tr(
-                        "Click & Drag to move point\n"
-                        "ALT + SHIFT + Click to delete point"
+                        'Click & Drag to move point\n'
+                        'ALT + SHIFT + Click to delete point'
                     )
                 )
                 self.setStatusTip(self.toolTip())
@@ -589,7 +589,7 @@ class Canvas(QWidget):
                 self.prevhShape = self.hShape = shape
                 self.prevhEdge = self.hEdge = index_edge
                 self.overrideCursor(CURSOR_POINT)
-                self.setToolTip(self.tr("ALT + Click to create point"))
+                self.setToolTip(self.tr('ALT + Click to create point'))
                 self.setStatusTip(self.toolTip())
                 self.update()
                 break
@@ -602,7 +602,7 @@ class Canvas(QWidget):
                 self.prevhEdge = self.hEdge
                 self.hEdge = None
                 self.setToolTip(
-                    self.tr("Click & drag to move shape '%s'") % shape.label
+                    self.tr('Click & drag to move shape "%s"') % shape.label
                 )
                 self.setStatusTip(self.toolTip())
                 self.overrideCursor(CURSOR_GRAB)
@@ -738,7 +738,7 @@ class Canvas(QWidget):
         return self.drawing() and (self.current and len(self.current) > 2)
 
     def mouseDoubleClickEvent(self, ev):
-        if self.double_click != "close":
+        if self.double_click != 'close':
             return
         if self.canCloseShape():
             self.finalise()
@@ -908,8 +908,8 @@ class Canvas(QWidget):
             drawing_shape = self.current.copy()
             if drawing_shape.fill_color.getRgb()[3] == 0:
                 logger.warning(
-                    "fill_drawing=true, but fill_color is transparent,"
-                    " so forcing to be opaque."
+                    'fill_drawing=true, but fill_color is transparent,'
+                    ' so forcing to be opaque.'
                 )
                 drawing_shape.fill_color.setAlpha(64)
             drawing_shape.addPoint(self.line[1])
@@ -947,10 +947,6 @@ class Canvas(QWidget):
         self.update()
 
     def closeEnough(self, p1, p2):
-        # d = distance(p1 - p2)
-        # m = (p1-p2).manhattanLength()
-        # print "d %.2f, m %d, %.2f" % (d, m, d - m)
-        # divide by scale to allow more precision when zoomed in
         return distance(p1 - p2) < (self.epsilon / self.scale)
 
     def intersectionPoint(self, p1, p2):
@@ -1141,7 +1137,7 @@ class LabelFileError(Exception):
 
 
 class LabelFile(object):
-    suffix = ".json"
+    suffix = '.json'
 
     def __init__(self, filename=None):
         self.shapes = []
@@ -1156,7 +1152,7 @@ class LabelFile(object):
         try:
             image_pil = PIL.Image.open(filename)
         except IOError:
-            logger.error("Failed opening image file: {}".format(filename))
+            logger.error('Failed opening image file: {}'.format(filename))
             return
 
         # apply orientation to image according to exif
@@ -1164,55 +1160,55 @@ class LabelFile(object):
 
         with io.BytesIO() as f:
             ext = osp.splitext(filename)[1].lower()
-            if ext in [".jpg", ".jpeg"]:
-                format = "JPEG"
+            if ext in ['.jpg', '.jpeg']:
+                format = 'JPEG'
             else:
-                format = "PNG"
+                format = 'PNG'
             image_pil.save(f, format=format)
             f.seek(0)
             return f.read()
 
     def load(self, filename):
         keys = [
-            "version",
-            "imageData",
-            "imagePath",
-            "shapes",  # polygonal annotations
-            "flags",  # image level flags
-            "imageHeight",
-            "imageWidth",
+            'version',
+            'imageData',
+            'imagePath',
+            'shapes',  # polygonal annotations
+            'flags',  # image level flags
+            'imageHeight',
+            'imageWidth',
         ]
         shape_keys = [
-            "label",
-            "points",
-            "shape_type",
-            "flags"]
+            'label',
+            'points',
+            'shape_type',
+            'flags']
         try:
-            with open(filename, "r") as f:
+            with open(filename, 'r') as f:
                 data = json.load(f)
 
-            if data["imageData"] is not None:
-                imageData = base64.b64decode(data["imageData"])
+            if data['imageData'] is not None:
+                imageData = base64.b64decode(data['imageData'])
             else:
                 # relative path from label file to relative path from cwd
-                imagePath = osp.join(osp.dirname(filename), data["imagePath"])
+                imagePath = osp.join(osp.dirname(filename), data['imagePath'])
                 imageData = self.load_image_file(imagePath)
-            flags = data.get("flags") or {}
-            imagePath = data["imagePath"]
+            flags = data.get('flags') or {}
+            imagePath = data['imagePath']
             self._check_image_height_and_width(
-                base64.b64encode(imageData).decode("utf-8"),
-                data.get("imageHeight"),
-                data.get("imageWidth"),
+                base64.b64encode(imageData).decode('utf-8'),
+                data.get('imageHeight'),
+                data.get('imageWidth'),
             )
             shapes = [
                 dict(
-                    label=s["label"],
-                    points=s["points"],
-                    shape_type=s.get("shape_type", "polygon"),
-                    flags=s.get("flags", {}),
+                    label=s['label'],
+                    points=s['points'],
+                    shape_type=s.get('shape_type', 'polygon'),
+                    flags=s.get('flags', {}),
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
-                for s in data["shapes"]
+                for s in data['shapes']
             ]
         except Exception as e:
             raise LabelFileError(e)
@@ -1235,14 +1231,14 @@ class LabelFile(object):
         img_arr = img_b64_to_arr(imageData)
         if imageHeight is not None and img_arr.shape[0] != imageHeight:
             logger.error(
-                "imageHeight does not match with imageData or imagePath, "
-                "so getting imageHeight from actual image."
+                'imageHeight does not match with imageData or imagePath, '
+                'so getting imageHeight from actual image.'
             )
             imageHeight = img_arr.shape[0]
         if imageWidth is not None and img_arr.shape[1] != imageWidth:
             logger.error(
-                "imageWidth does not match with imageData or imagePath, "
-                "so getting imageWidth from actual image."
+                'imageWidth does not match with imageData or imagePath, '
+                'so getting imageWidth from actual image.'
             )
             imageWidth = img_arr.shape[1]
         return imageHeight, imageWidth
@@ -1259,7 +1255,7 @@ class LabelFile(object):
         flags=None,
     ):
         if imageData is not None:
-            imageData = base64.b64encode(imageData).decode("utf-8")
+            imageData = base64.b64encode(imageData).decode('utf-8')
             imageHeight, imageWidth = self._check_image_height_and_width(
                 imageData, imageHeight, imageWidth
             )
@@ -1278,7 +1274,7 @@ class LabelFile(object):
             assert key not in data
             data[key] = value
         try:
-            with open(filename, "w") as f:
+            with open(filename, 'w') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             self.filename = filename
         except Exception as e:
@@ -1311,7 +1307,7 @@ class UniqueLabelQListWidget(EscapableQListWidget):
 
     def createItemFromLabel(self, label):
         if self.findItemByLabel(label):
-            raise ValueError("Item for label '{}' already exists".format(label))
+            raise ValueError('Item for label "{}" already exists'.format(label))
 
         item = QListWidgetItem()
         item.setData(Qt.UserRole, label)
@@ -1320,7 +1316,7 @@ class UniqueLabelQListWidget(EscapableQListWidget):
     def setItemLabel(self, item, label, color=None):
         qlabel = QLabel()
         if color is None:
-            qlabel.setText("{}".format(label))
+            qlabel.setText('{}'.format(label))
         else:
             qlabel.setText(
                 '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
@@ -1359,7 +1355,7 @@ class HTMLDelegate(QStyledItemDelegate):
 
         self.initStyleOption(options, index)
         self.doc.setHtml(options.text)
-        options.text = ""
+        options.text = ''
 
         style = (
             QApplication.style()
@@ -1419,7 +1415,7 @@ class LabelListWidgetItem(QStandardItem):
 
     def __init__(self, text=None, shape=None):
         super(LabelListWidgetItem, self).__init__()
-        self.setText(text or "")
+        self.setText(text or '')
         self.setShape(shape)
 
         self.setCheckable(True)
@@ -1497,7 +1493,7 @@ class LabelListWidget(QListView):
 
     def addItem(self, item):
         if not isinstance(item, LabelListWidgetItem):
-            raise TypeError("item must be LabelListWidgetItem")
+            raise TypeError('item must be LabelListWidgetItem')
         self.model().setItem(self.model().rowCount(), 0, item)
         item.setSizeHint(self.itemDelegate().sizeHint(None, None))
 
@@ -1514,7 +1510,7 @@ class LabelListWidget(QListView):
             item = self.model().item(row, 0)
             if item.shape() == shape:
                 return item
-        raise ValueError("cannot find shape: {}".format(shape))
+        raise ValueError('cannot find shape: {}'.format(shape))
 
     def clear(self):
         self.model().clear()
@@ -1524,16 +1520,16 @@ class LabelDialog(QDialog):
 
     def __init__(
             self,
-            text="Enter object label",
+            text='Enter object label',
             parent=None,
             labels=None,
             sort_labels=True,
             show_text_field=True,
-            completion="startswith",
+            completion='startswith',
             fit_to_content=None,
             flags=None):
         if fit_to_content is None:
-            fit_to_content = {"row": False, "column": True}
+            fit_to_content = {'row': False, 'column': True}
         self._fit_to_content = fit_to_content
 
         super(LabelDialog, self).__init__(parent)
@@ -1552,16 +1548,16 @@ class LabelDialog(QDialog):
             Qt.Horizontal,
             self,
         )
-        bb.button(bb.Ok).setIcon(newIcon("done"))
-        bb.button(bb.Cancel).setIcon(newIcon("undo"))
+        bb.button(bb.Ok).setIcon(newIcon('done'))
+        bb.button(bb.Cancel).setIcon(newIcon('undo'))
         bb.accepted.connect(self.validate)
         bb.rejected.connect(self.reject)
         layout.addWidget(bb)
         # label_list
         self.labelList = QListWidget()
-        if self._fit_to_content["row"]:
+        if self._fit_to_content['row']:
             self.labelList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        if self._fit_to_content["column"]:
+        if self._fit_to_content['column']:
             self.labelList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._sort_labels = sort_labels
         if labels:
@@ -1586,15 +1582,15 @@ class LabelDialog(QDialog):
         self.setLayout(layout)
         # completion
         completer = QCompleter()
-        if completion == "startswith":
+        if completion == 'startswith':
             completer.setCompletionMode(QCompleter.InlineCompletion)
             # Default settings.
             # completer.setFilterMode(QtCore.Qt.MatchStartsWith)
-        elif completion == "contains":
+        elif completion == 'contains':
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setFilterMode(Qt.MatchContains)
         else:
-            raise ValueError("Unsupported completion: {}".format(completion))
+            raise ValueError('Unsupported completion: {}'.format(completion))
         completer.setModel(self.labelList.model())
         self.edit.setCompleter(completer)
 
@@ -1614,7 +1610,7 @@ class LabelDialog(QDialog):
             return
 
         text = self.edit.text()
-        if hasattr(text, "strip"):
+        if hasattr(text, 'strip'):
             text = text.strip()
         else:
             text = text.trimmed()
@@ -1626,7 +1622,7 @@ class LabelDialog(QDialog):
 
     def postProcess(self):
         text = self.edit.text()
-        if hasattr(text, "strip"):
+        if hasattr(text, 'strip'):
             text = text.strip()
         else:
             text = text.trimmed()
@@ -1649,7 +1645,7 @@ class LabelDialog(QDialog):
             self.flagsLayout.removeWidget(item)
             item.setParent(None)
 
-    def resetFlags(self, label=""):
+    def resetFlags(self, label=''):
         flags = {}
         for pattern, keys in self._flags.items():
             if re.match(pattern, label):
@@ -1673,10 +1669,10 @@ class LabelDialog(QDialog):
         return flags
 
     def popUp(self, text=None, move=True, flags=None):
-        if self._fit_to_content["row"]:
+        if self._fit_to_content['row']:
             self.labelList.setMinimumHeight(
                 self.labelList.sizeHintForRow(0) * self.labelList.count() + 2)
-        if self._fit_to_content["column"]:
+        if self._fit_to_content['column']:
             self.labelList.setMinimumWidth(self.labelList.sizeHintForColumn(0) + 2)
         # if text is None, the previous label in self.edit is kept
         if text is None:
@@ -1690,7 +1686,7 @@ class LabelDialog(QDialog):
         items = self.labelList.findItems(text, Qt.MatchFixedString)
         if items:
             if len(items) != 1:
-                logger.warning("Label list has duplicate '{}'".format(text))
+                logger.warning('Label list has duplicate "{}"'.format(text))
             self.labelList.setCurrentItem(items[0])
             row = self.labelList.row(items[0])
             self.edit.completer().setCurrentRow(row)
@@ -1709,11 +1705,11 @@ class BrightnessContrastDialog(QDialog):
     def __init__(self, img, callback, parent=None):
         super(BrightnessContrastDialog, self).__init__(parent)
         self.setModal(True)
-        self.setWindowTitle("Brightness/Contrast")
+        self.setWindowTitle('Brightness/Contrast')
 
         sliders = {}
         layouts = {}
-        for title in ["Brightness:", "Contrast:"]:
+        for title in ['Brightness:', 'Contrast:']:
             layout = QHBoxLayout()
             title_label = QLabel(self.tr(title))
             title_label.setFixedWidth(75)
@@ -1722,21 +1718,21 @@ class BrightnessContrastDialog(QDialog):
             slider.setRange(0, 3 * self._base_value)
             slider.setValue(self._base_value)
             layout.addWidget(slider)
-            value_label = QLabel(f"{slider.value() / self._base_value:.2f}")
+            value_label = QLabel(f'{slider.value() / self._base_value:.2f}')
             value_label.setAlignment(Qt.AlignRight)
             layout.addWidget(value_label)
             slider.valueChanged.connect(self.onNewValue)
-            slider.valueChanged.connect(lambda: value_label.setText(f"{slider.value() / self._base_value:.2f}"))
+            slider.valueChanged.connect(lambda: value_label.setText(f'{slider.value() / self._base_value:.2f}'))
             layouts[title] = layout
             sliders[title] = slider
 
-        self.slider_brightness = sliders["Brightness:"]
-        self.slider_contrast = sliders["Contrast:"]
+        self.slider_brightness = sliders['Brightness:']
+        self.slider_contrast = sliders['Contrast:']
         del sliders
 
         layout = QVBoxLayout()
-        layout.addLayout(layouts["Brightness:"])
-        layout.addLayout(layouts["Contrast:"])
+        layout.addLayout(layouts['Brightness:'])
+        layout.addLayout(layouts['Contrast:'])
         del layouts
         self.setLayout(layout)
 
@@ -2731,7 +2727,7 @@ def update_dict(target_dict, new_dict, validate_item=None):
         if validate_item:
             validate_item(key, value)
         if key not in target_dict:
-            logger.warning("Skipping unexpected key in config: {}".format(key))
+            logger.warning('Skipping unexpected key in config: {}'.format(key))
             continue
         if isinstance(target_dict[key], dict) and isinstance(value, dict):
             update_dict(target_dict[key], value, validate_item=validate_item)
@@ -2744,150 +2740,144 @@ def get_default_config():
     if not osp.exists(config_file):
         with open(config_file, 'w') as f:
             f.writelines('\n'.join([
-                "auto_save: false",
-                "display_label_popup: true",
-                "store_data: true",
-                "keep_prev: false",
-                "keep_prev_scale: false",
-                "keep_prev_brightness: false",
-                "keep_prev_contrast: false",
-                "logger_level: info",
-                "",
-                "flags: null",
-                "label_flags: null",
-                "labels: null",
-                "file_search: null",
-                "sort_labels: true",
-                "validate_label: null",
-                "",
-                "default_shape_color: [0, 255, 0]",
-                "shape_color: auto  # null, 'auto', 'manual'",
-                "shift_auto_shape_color: 0",
-                "label_colors: null",
-                "",
-                "shape:",
-                "  # drawing",
-                "  line_color: [0, 255, 0, 128]",
-                "  fill_color: [0, 0, 0, 64]",
-                "  vertex_fill_color: [0, 255, 0, 255]",
-                "  # selecting / hovering",
-                "  select_line_color: [255, 255, 255, 255]",
-                "  select_fill_color: [0, 255, 0, 64]",
-                "  hvertex_fill_color: [255, 255, 255, 255]",
-                "  point_size: 8",
-                "",
-                "ai:",
+                'auto_save: false',
+                'display_label_popup: true',
+                'store_data: true',
+                'keep_prev: false',
+                'keep_prev_scale: false',
+                'keep_prev_brightness: false',
+                'keep_prev_contrast: false',
+                'logger_level: info',
+                '',
+                'flags: null',
+                'label_flags: null',
+                'labels: null',
+                'file_search: null',
+                'sort_labels: true',
+                'validate_label: null',
+                '',
+                'default_shape_color: [0, 255, 0]',
+                'shape_color: auto',
+                'shift_auto_shape_color: 0',
+                'label_colors: null',
+                '',
+                'shape:',
+                '  # drawing',
+                '  line_color: [0, 255, 0, 128]',
+                '  fill_color: [0, 0, 0, 64]',
+                '  vertex_fill_color: [0, 255, 0, 255]',
+                '  # selecting / hovering',
+                '  select_line_color: [255, 255, 255, 255]',
+                '  select_fill_color: [0, 255, 0, 64]',
+                '  hvertex_fill_color: [255, 255, 255, 255]',
+                '  point_size: 8',
+                '',
+                'ai:',
                 "  default: 'EfficientSam (accuracy)'",
-                "",
-                "# main",
-                "flag_dock:",
-                "  show: true",
-                "  closable: true",
-                "  movable: true",
-                "  floatable: true",
-                "label_dock:",
-                "  show: true",
-                "  closable: true",
-                "  movable: true",
-                "  floatable: true",
-                "shape_dock:",
-                "  show: true",
-                "  closable: true",
-                "  movable: true",
-                "  floatable: true",
-                "file_dock:",
-                "  show: true",
-                "  closable: true",
-                "  movable: true",
-                "  floatable: true",
-                "",
-                "# label_dialog",
-                "show_label_text_field: true",
-                "label_completion: startswith",
-                "fit_to_content:",
-                "  column: true",
-                "  row: false",
-                "",
-                "# canvas",
-                "epsilon: 10.0",
-                "canvas:",
-                "  fill_drawing: true",
-                "  # None: do nothing",
-                "  # close: close polygon",
-                "  double_click: close",
-                "  # The max number of edits we can undo",
-                "  num_backups: 10",
-                "  # show crosshair",
-                "  crosshair:",
-                "    polygon: false",
-                "    line: false",
-                "    point: false",
-                "",
-                "shortcuts:",
-                "  close: Ctrl+W",
-                "  open: Ctrl+O",
-                "  open_dir: Ctrl+U",
-                "  quit: Ctrl+Q",
-                "  save: Ctrl+S",
-                "  save_as: Ctrl+Shift+S",
-                "  save_to: null",
-                "  delete_file: Ctrl+Delete",
-                "",
-                "  open_next: [D, Ctrl+Shift+D]",
-                "  open_prev: [A, Ctrl+Shift+A]",
-                "",
-                "  zoom_in: [Ctrl++, Ctrl+=]",
-                "  zoom_out: Ctrl+-",
-                "  zoom_to_original: Ctrl+0",
-                "  fit_window: Ctrl+F",
-                "  fit_width: Ctrl+Shift+F",
-                "",
-                "  create_polygon: Ctrl+N",
-                "  create_line: null",
-                "  create_point: null",
-                "  edit_polygon: Ctrl+J",
-                "  delete_polygon: Delete",
-                "  duplicate_polygon: Ctrl+D",
-                "  copy_polygon: Ctrl+C",
-                "  paste_polygon: Ctrl+V",
-                "  undo: Ctrl+Z",
-                "  undo_last_point: Ctrl+Z",
-                "  add_point_to_edge: Ctrl+Shift+P",
-                "  edit_label: Ctrl+E",
-                "  toggle_keep_prev_mode: Ctrl+P",
-                "  remove_selected_point: [Meta+H, Backspace]",
-                "",
-                "  show_all_polygons: null",
-                "  hide_all_polygons: null",
-                "  toggle_all_polygons: T\n",
+                '',
+                '# main',
+                'flag_dock:',
+                '  show: true',
+                '  closable: true',
+                '  movable: true',
+                '  floatable: true',
+                'label_dock:',
+                '  show: true',
+                '  closable: true',
+                '  movable: true',
+                '  floatable: true',
+                'shape_dock:',
+                '  show: true',
+                '  closable: true',
+                '  movable: true',
+                '  floatable: true',
+                'file_dock:',
+                '  show: true',
+                '  closable: true',
+                '  movable: true',
+                '  floatable: true',
+                '',
+                '# label_dialog',
+                'show_label_text_field: true',
+                'label_completion: startswith',
+                'fit_to_content:',
+                '  column: true',
+                '  row: false',
+                '',
+                '# canvas',
+                'epsilon: 10.0',
+                'canvas:',
+                '  fill_drawing: true',
+                '  # None: do nothing',
+                '  # close: close polygon',
+                '  double_click: close',
+                '  # The max number of edits we can undo',
+                '  num_backups: 10',
+                '  # show crosshair',
+                '  crosshair:',
+                '    polygon: false',
+                '    line: false',
+                '    point: false',
+                '',
+                'shortcuts:',
+                '  close: Ctrl+W',
+                '  open: Ctrl+O',
+                '  open_dir: Ctrl+U',
+                '  quit: Ctrl+Q',
+                '  save: Ctrl+S',
+                '  save_as: Ctrl+Shift+S',
+                '  save_to: null',
+                '  delete_file: Ctrl+Delete',
+                '',
+                '  open_next: [D, Ctrl+Shift+D]',
+                '  open_prev: [A, Ctrl+Shift+A]',
+                '',
+                '  zoom_in: [Ctrl++, Ctrl+=]',
+                '  zoom_out: Ctrl+-',
+                '  zoom_to_original: Ctrl+0',
+                '  fit_window: Ctrl+F',
+                '  fit_width: Ctrl+Shift+F',
+                '',
+                '  create_polygon: Ctrl+N',
+                '  create_line: null',
+                '  create_point: null',
+                '  edit_polygon: Ctrl+J',
+                '  delete_polygon: Delete',
+                '  duplicate_polygon: Ctrl+D',
+                '  copy_polygon: Ctrl+C',
+                '  paste_polygon: Ctrl+V',
+                '  undo: Ctrl+Z',
+                '  undo_last_point: Ctrl+Z',
+                '  add_point_to_edge: Ctrl+Shift+P',
+                '  edit_label: Ctrl+E',
+                '  toggle_keep_prev_mode: Ctrl+P',
+                '  remove_selected_point: [Meta+H, Backspace]',
+                '',
+                '  show_all_polygons: null',
+                '  hide_all_polygons: null',
+                '  toggle_all_polygons: T\n',
             ]))
     with open(config_file) as f:
         config = yaml.safe_load(f)
 
     # save default config to ~/.labelQuadrc
-    user_config_file = osp.join(osp.expanduser("~"), ".labelQuadrc")
+    user_config_file = osp.join(osp.expanduser('~'), '.labelQuadrc')
     if not osp.exists(user_config_file):
         try:
             shutil.copy(config_file, user_config_file)
         except Exception:
-            logger.warning("Failed to save config: {}".format(user_config_file))
+            logger.warning('Failed to save config: {}'.format(user_config_file))
 
     return config
 
 
 def validate_config_item(key, value):
-    if key == "validate_label" and value not in [None, "exact"]:
-        raise ValueError(
-            "Unexpected value for config key 'validate_label': {}".format(value)
-        )
-    if key == "shape_color" and value not in [None, "auto", "manual"]:
-        raise ValueError(
-            "Unexpected value for config key 'shape_color': {}".format(value)
-        )
-    if key == "labels" and value is not None and len(value) != len(set(value)):
-        raise ValueError(
-            "Duplicates are detected for config key 'labels': {}".format(value)
-        )
+    if key == 'validate_label' and value not in [None, 'exact']:
+        raise ValueError('Unexpected value for config key "validate_label": {}'.format(value))
+    if key == 'shape_color' and value not in [None, 'auto', 'manual']:
+        raise ValueError('Unexpected value for config key "shape_color": {}'.format(value))
+    if key == 'labels' and value is not None and len(value) != len(set(value)):
+        raise ValueError('Duplicates are detected for config key "labels": {}'.format(value))
 
 
 def get_config(config_file_or_yaml=None, config_from_args=None):
@@ -2899,7 +2889,7 @@ def get_config(config_file_or_yaml=None, config_from_args=None):
         config_from_yaml = yaml.safe_load(config_file_or_yaml)
         if not isinstance(config_from_yaml, dict):
             with open(config_from_yaml) as f:
-                logger.info("Loading config file from: {}".format(config_from_yaml))
+                logger.info('Loading config file from: {}'.format(config_from_yaml))
                 config_from_yaml = yaml.safe_load(f)
         update_dict(config, config_from_yaml, validate_item=validate_config_item)
 
@@ -2925,7 +2915,7 @@ def img_data_to_arr(img_data):
 
 def img_pil_to_data(img_pil):
     f = io.BytesIO()
-    img_pil.save(f, format="PNG")
+    img_pil.save(f, format='PNG')
     img_data = f.getvalue()
     return img_data
 
@@ -2960,12 +2950,12 @@ def addActions(widget, actions):
 
 
 def fmtShortcut(text):
-    mod, key = text.split("+", 1)
-    return "<b>%s</b>+<b>%s</b>" % (mod, key)
+    mod, key = text.split('+', 1)
+    return '<b>%s</b>+<b>%s</b>' % (mod, key)
 
 
 def labelValidator():
-    return QRegExpValidator(QRegExp(r"^[^ \t].+"), None)
+    return QRegExpValidator(QRegExp(r'^[^ \t].+'), None)
 
 
 def apply_exif_orientation(image):
@@ -2979,7 +2969,7 @@ def apply_exif_orientation(image):
 
     exif = {PIL.ExifTags.TAGS[k]: v for k, v in exif.items() if k in PIL.ExifTags.TAGS}
 
-    orientation = exif.get("Orientation", None)
+    orientation = exif.get('Orientation', None)
 
     if orientation == 1:
         # do nothing
