@@ -248,16 +248,10 @@ class Shape(object):
         return min_i
 
     def containsPoint(self, point):
-        return self.makePath().contains(point)
-
-    def makePath(self):
-        path = QPainterPath(self.points[0])
-        for p in self.points[1:]:
-            path.lineTo(p)
-        return path
+        return self.__make_path().contains(point)
 
     def boundingRect(self):
-        return self.makePath().boundingRect()
+        return self.__make_path().boundingRect()
 
     def moveBy(self, offset):
         self.points = [p + offset for p in self.points]
@@ -274,6 +268,12 @@ class Shape(object):
 
     def copy(self):
         return copy.deepcopy(self)
+
+    def __make_path(self) -> QPainterPath:
+        path = QPainterPath(self.points[0])
+        for p in self.points[1:]:
+            path.lineTo(p)
+        return path
 
     def __scale_point(self, point: QPointF) -> QPointF:
         return QPointF(point.x() * self.scale, point.y() * self.scale)
@@ -318,20 +318,17 @@ class Canvas(QWidget):
         self.visible = {}
         self._hideBackround = False
         self.hideBackround = False
-        self.hShape = None
-        self.prevhShape = None
-        self.hVertex = None
-        self.prevhVertex = None
+        self.highlighted_shape: Optional[Shape] = None
+        self.highlighted_shape_prev: Optional[Shape] = None
+        self.highlighted_vertex: Optional[int] = None
+        self.highlighted_vertex_prev: Optional[int] = None
+        self.highlighted_shape_is_selected: bool = False
         self.movingShape = False
         self.snapping = True
-        self.hShapeIsSelected = False
         self._painter = QPainter()
         self._cursor = CURSOR_DEFAULT
-        # Menus:
-        # 0: right-click without selection and dragging of shapes
-        # 1: right-click with selection and dragging of shapes
         self.menus = [QMenu(), QMenu()]
-        # Set widget options.
+
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
 
@@ -436,20 +433,14 @@ class Canvas(QWidget):
                 self.movingShape = True
             return
 
-        # Just hovering over the canvas, 2 possibilities:
-        # - Highlight shapes
-        # - Highlight vertex
-        # Update shape/vertex fill and tooltip value accordingly.
         self.setToolTip(self.tr('Image'))
         for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
-            # Look for a nearby vertex to highlight. If that fails,
-            # check if we happen to be inside a shape.
             index = shape.nearestVertex(pos, self.epsilon)
             if index is not None:
                 if self.selectedVertex():
-                    self.hShape.highlightClear()
-                self.prevhVertex = self.hVertex = index
-                self.prevhShape = self.hShape = shape
+                    self.highlighted_shape.highlightClear()
+                self.highlighted_vertex_prev = self.highlighted_vertex = index
+                self.highlighted_shape_prev = self.highlighted_shape = shape
                 shape.highlightVertex(index, shape.MOVE_VERTEX)
                 self.overrideCursor(CURSOR_POINT)
                 self.setToolTip(self.tr('Click & Drag to move point\n'
@@ -459,18 +450,18 @@ class Canvas(QWidget):
                 break
             elif shape.containsPoint(pos):
                 if self.selectedVertex():
-                    self.hShape.highlightClear()
-                self.prevhVertex = self.hVertex
-                self.hVertex = None
-                self.prevhShape = self.hShape = shape
+                    self.highlighted_shape.highlightClear()
+                self.highlighted_vertex_prev = self.highlighted_vertex
+                self.highlighted_vertex = None
+                self.highlighted_shape_prev = self.highlighted_shape = shape
                 self.setToolTip(self.tr('Click & drag to move shape "%s"') % shape.label)
                 self.setStatusTip(self.toolTip())
                 self.overrideCursor(CURSOR_GRAB)
                 self.update()
                 break
-        else:  # Nothing found, clear highlights, reset state.
+        else:
             self.unHighlight()
-        self.vertex_selected_signal.emit(self.hVertex is not None)
+        self.vertex_selected_signal.emit(self.highlighted_vertex is not None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = self.transformPos(event.localPos())
@@ -502,7 +493,7 @@ class Canvas(QWidget):
         elif event.button() == Qt.MouseButton.RightButton and self.editing():
             group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
             if (not self.selected_shapes) or \
-               ((self.hShape is not None) and (self.hShape not in self.selected_shapes)):
+               ((self.highlighted_shape is not None) and (self.highlighted_shape not in self.selected_shapes)):
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.repaint()
             self.prevPoint = pos
@@ -520,12 +511,12 @@ class Canvas(QWidget):
                 menu()
         elif event.button() == Qt.MouseButton.LeftButton:
             if self.editing():
-                if (self.hShape is not None) and \
-                   (self.hShapeIsSelected) and \
+                if (self.highlighted_shape is not None) and \
+                   (self.highlighted_shape_is_selected) and \
                    (not self.movingShape):
-                    self.selection_changed_signal.emit([x for x in self.selected_shapes if x != self.hShape])
-        if self.movingShape and self.hShape:
-            index = self.shapes.index(self.hShape)
+                    self.selection_changed_signal.emit([x for x in self.selected_shapes if x != self.highlighted_shape])
+        if self.movingShape and self.highlighted_shape:
+            index = self.shapes.index(self.highlighted_shape)
             if self.shapesBackups[-1][index].points != self.shapes[index].points:
                 self.storeShapes()
                 self.shape_moved_signal.emit()
@@ -563,7 +554,7 @@ class Canvas(QWidget):
         Shape.scale = self.scale
         for shape in self.shapes:
             if (shape.selected or not self._hideBackround) and self.isVisible(shape):
-                shape.fill = shape.selected or shape == self.hShape
+                shape.fill = shape.selected or shape == self.highlighted_shape
                 shape.paint(p)
         if self.current:
             self.current.paint(p)
@@ -611,23 +602,15 @@ class Canvas(QWidget):
 
     @property
     def isShapeRestorable(self):
-        # We save the state AFTER each edit (not before) so for an
-        # edit to be undoable, we expect the CURRENT and the PREVIOUS state
-        # to be in the undo stack.
         if len(self.shapesBackups) < 2:
             return False
         return True
 
     def restoreShape(self):
-        # This does _part_ of the job of restoring shapes.
-        # The complete process is also done in app.py::undoShapeEdit
-        # and app.py::loadShapes and our own Canvas::loadShapes function.
         if not self.isShapeRestorable:
             return
         self.shapesBackups.pop()  # latest
 
-        # The application will eventually call Canvas.loadShapes which will
-        # push this right back onto the stack.
         shapesBackup = self.shapesBackups.pop()
         self.shapes = shapesBackup
         self.selected_shapes = []
@@ -658,25 +641,25 @@ class Canvas(QWidget):
             self.deSelectShape()
 
     def unHighlight(self):
-        if self.hShape:
-            self.hShape.highlightClear()
+        if self.highlighted_shape:
+            self.highlighted_shape.highlightClear()
             self.update()
-        self.prevhShape = self.hShape
-        self.prevhVertex = self.hVertex
-        self.hShape = self.hVertex = None
+        self.highlighted_shape_prev = self.highlighted_shape
+        self.highlighted_vertex_prev = self.highlighted_vertex
+        self.highlighted_shape = self.highlighted_vertex = None
 
     def selectedVertex(self):
-        return self.hVertex is not None
+        return self.highlighted_vertex is not None
 
     def removeSelectedPoint(self):
-        shape = self.prevhShape
-        index = self.prevhVertex
+        shape = self.highlighted_shape_prev
+        index = self.highlighted_vertex_prev
         if shape is None or index is None:
             return
         shape.removePoint(index)
         shape.highlightClear()
-        self.hShape = shape
-        self.prevhVertex = None
+        self.highlighted_shape = shape
+        self.highlighted_vertex_prev = None
         self.movingShape = True  # Save changes
 
     def end_copy_move(self) -> None:
@@ -715,7 +698,7 @@ class Canvas(QWidget):
 
     def selectShapePoint(self, point, multiple_selection_mode):
         if self.selectedVertex():
-            index, shape = self.hVertex, self.hShape
+            index, shape = self.highlighted_vertex, self.highlighted_shape
             shape.highlightVertex(index, shape.MOVE_VERTEX)
         else:
             for shape in reversed(self.shapes):
@@ -726,9 +709,9 @@ class Canvas(QWidget):
                             self.selection_changed_signal.emit(self.selected_shapes + [shape])
                         else:
                             self.selection_changed_signal.emit([shape])
-                        self.hShapeIsSelected = False
+                        self.highlighted_shape_is_selected = False
                     else:
-                        self.hShapeIsSelected = True
+                        self.highlighted_shape_is_selected = True
                     self.calculateOffsets(point)
                     return
         self.deSelectShape()
@@ -748,7 +731,6 @@ class Canvas(QWidget):
                 top = rect.top()
             if rect.bottom() > bottom:
                 bottom = rect.bottom()
-
         x1 = left - point.x()
         y1 = top - point.y()
         x2 = right - point.x()
@@ -756,7 +738,7 @@ class Canvas(QWidget):
         self.offsets = QPointF(x1, y1), QPointF(x2, y2)
 
     def boundedMoveVertex(self, pos: QPointF) -> None:
-        index, shape = self.hVertex, self.hShape
+        index, shape = self.highlighted_vertex, self.highlighted_shape
         point = shape[index]
         if self.outOfPixmap(pos):
             pos = self.intersectionPoint(point, pos)
@@ -772,8 +754,7 @@ class Canvas(QWidget):
         if self.outOfPixmap(o2):
             pos += QPointF(
                 min(0, self.pixmap.width() - o2.x()),
-                min(0, self.pixmap.height() - o2.y()),
-            )
+                min(0, self.pixmap.height() - o2.y()))
         dp = pos - self.prevPoint
         if dp:
             for shape in shapes:
@@ -786,7 +767,7 @@ class Canvas(QWidget):
         if self.selected_shapes:
             self.setHiding(False)
             self.selection_changed_signal.emit([])
-            self.hShapeIsSelected = False
+            self.highlighted_shape_is_selected = False
             self.update()
 
     def deleteSelected(self):
@@ -823,7 +804,7 @@ class Canvas(QWidget):
 
     def outOfPixmap(self, p):
         w, h = self.pixmap.width(), self.pixmap.height()
-        return not (0 <= p.x() <= w - 1 and 0 <= p.y() <= h - 1)
+        return not ((0 <= p.x() <= w - 1) and (0 <= p.y() <= h - 1))
 
     def finalise(self):
         assert self.current
@@ -944,8 +925,8 @@ class Canvas(QWidget):
             self.shapes.extend(shapes)
         self.storeShapes()
         self.current = None
-        self.hShape = None
-        self.hVertex = None
+        self.highlighted_shape = None
+        self.highlighted_vertex = None
         self.update()
 
     def setShapeVisible(self, shape, value):
