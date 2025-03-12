@@ -397,11 +397,9 @@ class Canvas(QWidget):
                 self.repaint()
                 return
 
-            if self.outOfPixmap(pos):
-                pos = self.intersectionPoint(self.current[-1], pos)
-            elif (self.snapping) and \
-                 (len(self.current) > 1) and \
-                 (self.closeEnough(pos, self.current[0])):
+            if (self.snapping) and \
+               (len(self.current) > 1) and \
+               (self.closeEnough(pos, self.current[0])):
                 pos = self.current[0]
                 self.overrideCursor(CURSOR_POINT)
                 self.current.highlightVertex(0, Shape.NEAR_VERTEX)
@@ -415,7 +413,7 @@ class Canvas(QWidget):
         if Qt.MouseButton.RightButton & event.buttons():
             if self.selected_shapes_copy and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
-                self.boundedMoveShapes(self.selected_shapes_copy, pos)
+                self.__move_shapes(self.selected_shapes_copy, pos)
                 self.repaint()
             elif self.selected_shapes:
                 self.selected_shapes_copy = [s.copy() for s in self.selected_shapes]
@@ -424,12 +422,12 @@ class Canvas(QWidget):
 
         if Qt.MouseButton.LeftButton & event.buttons():
             if self.selectedVertex():
-                self.boundedMoveVertex(pos)
+                self.__move_vertex(pos)
                 self.repaint()
                 self.movingShape = True
             elif self.selected_shapes and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
-                self.boundedMoveShapes(self.selected_shapes, pos)
+                self.__move_shapes(self.selected_shapes, pos)
                 self.repaint()
                 self.movingShape = True
             return
@@ -477,8 +475,7 @@ class Canvas(QWidget):
                     self.line[0] = self.current[-1]
                     if len(self.current.points) == 4:
                         self.finalise()
-                elif not self.outOfPixmap(pos):
-                    # Create new shape.
+                else:
                     self.current = Shape()
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     self.line.points = [pos, pos]
@@ -741,32 +738,6 @@ class Canvas(QWidget):
         y2 = bottom - point.y()
         self.offsets = QPointF(x1, y1), QPointF(x2, y2)
 
-    def boundedMoveVertex(self, pos: QPointF) -> None:
-        index, shape = self.highlighted_vertex, self.highlighted_shape
-        point = shape[index]
-        if self.outOfPixmap(pos):
-            pos = self.intersectionPoint(point, pos)
-        shape.moveVertexBy(index, pos - point)
-
-    def boundedMoveShapes(self, shapes, pos):
-        if self.outOfPixmap(pos):
-            return False  # No need to move
-        o1 = pos + self.offsets[0]
-        if self.outOfPixmap(o1):
-            pos -= QPointF(min(0, o1.x()), min(0, o1.y()))
-        o2 = pos + self.offsets[1]
-        if self.outOfPixmap(o2):
-            pos += QPointF(
-                min(0, self.pixmap.width() - o2.x()),
-                min(0, self.pixmap.height() - o2.y()))
-        dp = pos - self.prevPoint
-        if dp:
-            for shape in shapes:
-                shape.moveBy(dp)
-            self.prevPoint = pos
-            return True
-        return False
-
     def deSelectShape(self):
         if self.selected_shapes:
             self.setHiding(False)
@@ -878,7 +849,7 @@ class Canvas(QWidget):
 
     def moveByKeyboard(self, offset):
         if self.selected_shapes:
-            self.boundedMoveShapes(self.selected_shapes, self.prevPoint + offset)
+            self.__move_shapes(self.selected_shapes, self.prevPoint + offset)
             self.repaint()
             self.movingShape = True
 
@@ -942,6 +913,20 @@ class Canvas(QWidget):
         self.pixmap = None
         self.shapesBackups = []
         self.update()
+
+    def __move_shapes(self, shapes: list[Shape], pos: QPointF) -> None:
+        dp = pos - self.prevPoint
+        if dp:
+            for shape in shapes:
+                shape.moveBy(dp)
+            self.prevPoint = pos
+            return True
+        return False
+
+    def __move_vertex(self, pos: QPointF) -> None:
+        index, shape = self.highlighted_vertex, self.highlighted_shape
+        point = shape[index]
+        shape.moveVertexBy(index, pos - point)
 
 
 class LabelFileError(Exception):
