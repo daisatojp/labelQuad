@@ -316,14 +316,15 @@ class Canvas(QWidget):
             raise ValueError('Unexpected value for double_click event: {}'.format(self.double_click))
         self.num_backups = kwargs.pop('num_backups', 10)
         self._crosshair = kwargs.pop('crosshair', {'polygon': False})
+
         super(Canvas, self).__init__(*args, **kwargs)
-        # Initialise local state.
+
         self.mode = self.EDIT
         self.shapes = []
         self.shapesBackups = []
         self.current = None
-        self.selectedShapes = []
-        self.selectedShapesCopy = []
+        self.selected_shapes: list[Shape] = []
+        self.selected_shapes_copy: list[Shape] = []
         self.line = Shape()
         self.prevPoint = QPoint()
         self.prevMovePoint = QPoint()
@@ -383,8 +384,8 @@ class Canvas(QWidget):
             if int(modifiers) == 0:
                 self.snapping = True
         elif self.editing():
-            if self.movingShape and self.selectedShapes:
-                index = self.shapes.index(self.selectedShapes[0])
+            if self.movingShape and self.selected_shapes:
+                index = self.shapes.index(self.selected_shapes[0])
                 if self.shapesBackups[-1][index].points != self.shapes[index].points:
                     self.storeShapes()
                     self.shape_moved_signal.emit()
@@ -407,25 +408,20 @@ class Canvas(QWidget):
             return
 
         self.mouse_moved_signal.emit(pos)
-
         self.prevMovePoint = pos
         self.restoreCursor()
 
         if self.drawing():
             self.overrideCursor(CURSOR_DRAW)
             if not self.current:
-                self.repaint()  # draw crosshair
+                self.repaint()
                 return
 
             if self.outOfPixmap(pos):
-                # Don't allow the user to draw outside the pixmap.
-                # Project the point to the pixmap's edges.
                 pos = self.intersectionPoint(self.current[-1], pos)
-            elif (self.snapping
-                  and len(self.current) > 1
-                  and self.closeEnough(pos, self.current[0])):
-                # Attract line to starting point and
-                # colorise to alert the user.
+            elif (self.snapping) and \
+                 (len(self.current) > 1) and \
+                 (self.closeEnough(pos, self.current[0])):
                 pos = self.current[0]
                 self.overrideCursor(CURSOR_POINT)
                 self.current.highlightVertex(0, Shape.NEAR_VERTEX)
@@ -437,12 +433,12 @@ class Canvas(QWidget):
             return
 
         if Qt.MouseButton.RightButton & event.buttons():
-            if self.selectedShapesCopy and self.prevPoint:
+            if self.selected_shapes_copy and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
-                self.boundedMoveShapes(self.selectedShapesCopy, pos)
+                self.boundedMoveShapes(self.selected_shapes_copy, pos)
                 self.repaint()
-            elif self.selectedShapes:
-                self.selectedShapesCopy = [s.copy() for s in self.selectedShapes]
+            elif self.selected_shapes:
+                self.selected_shapes_copy = [s.copy() for s in self.selected_shapes]
                 self.repaint()
             return
 
@@ -451,9 +447,9 @@ class Canvas(QWidget):
                 self.boundedMoveVertex(pos)
                 self.repaint()
                 self.movingShape = True
-            elif self.selectedShapes and self.prevPoint:
+            elif self.selected_shapes and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
-                self.boundedMoveShapes(self.selectedShapes, pos)
+                self.boundedMoveShapes(self.selected_shapes, pos)
                 self.repaint()
                 self.movingShape = True
             return
@@ -543,20 +539,20 @@ class Canvas(QWidget):
                 self.repaint()
         elif event.button() == Qt.MouseButton.RightButton and self.editing():
             group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
-            if (not self.selectedShapes) or \
-               ((self.hShape is not None) and (self.hShape not in self.selectedShapes)):
+            if (not self.selected_shapes) or \
+               ((self.hShape is not None) and (self.hShape not in self.selected_shapes)):
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.repaint()
             self.prevPoint = pos
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.RightButton:
-            menu = self.menus[len(self.selectedShapesCopy) > 0]
+            menu = self.menus[len(self.selected_shapes_copy) > 0]
             self.restoreCursor()
             if isinstance(menu, QMenu):
-                if not menu.exec_(self.mapToGlobal(event.pos())) and self.selectedShapesCopy:
+                if not menu.exec_(self.mapToGlobal(event.pos())) and self.selected_shapes_copy:
                     # Cancel the move by deleting the shadow copy.
-                    self.selectedShapesCopy = []
+                    self.selected_shapes_copy = []
                     self.repaint()
             else:
                 menu()
@@ -565,7 +561,7 @@ class Canvas(QWidget):
                 if (self.hShape is not None) and \
                    (self.hShapeIsSelected) and \
                    (not self.movingShape):
-                    self.selection_changed_signal.emit([x for x in self.selectedShapes if x != self.hShape])
+                    self.selection_changed_signal.emit([x for x in self.selected_shapes if x != self.hShape])
         if self.movingShape and self.hShape:
             index = self.shapes.index(self.hShape)
             if self.shapesBackups[-1][index].points != self.shapes[index].points:
@@ -611,8 +607,8 @@ class Canvas(QWidget):
             self.current.paint(p)
             assert len(self.line.points) == len(self.line.point_labels)
             self.line.paint(p)
-        if self.selectedShapesCopy:
-            for s in self.selectedShapesCopy:
+        if self.selected_shapes_copy:
+            for s in self.selected_shapes_copy:
                 s.paint(p)
 
         if (self.fillDrawing()) and \
@@ -672,7 +668,7 @@ class Canvas(QWidget):
         # push this right back onto the stack.
         shapesBackup = self.shapesBackups.pop()
         self.shapes = shapesBackup
-        self.selectedShapes = []
+        self.selected_shapes = []
         for shape in self.shapes:
             shape.selected = False
         self.update()
@@ -739,23 +735,23 @@ class Canvas(QWidget):
         self.movingShape = True  # Save changes
 
     def end_copy_move(self) -> None:
-        if (not (self.selectedShapes and self.selectedShapesCopy)) or \
-           (not (len(self.selectedShapesCopy) == len(self.selectedShapes))):
+        if (not (self.selected_shapes and self.selected_shapes_copy)) or \
+           (not (len(self.selected_shapes_copy) == len(self.selected_shapes))):
             # something wrong
-            self.selectedShapes = []
-            self.selectedShapesCopy = []
+            self.selected_shapes = []
+            self.selected_shapes_copy = []
             return
-        for i, shape in enumerate(self.selectedShapesCopy):
+        for i, shape in enumerate(self.selected_shapes_copy):
             self.shapes.append(shape)
-            self.selectedShapes[i].selected = False
-            self.selectedShapes[i] = shape
-        self.selectedShapesCopy = []
+            self.selected_shapes[i].selected = False
+            self.selected_shapes[i] = shape
+        self.selected_shapes_copy = []
         self.repaint()
         self.storeShapes()
 
     def hideBackroundShapes(self, value):
         self.hideBackround = value
-        if self.selectedShapes:
+        if self.selected_shapes:
             # Only hide other shapes if there is a current selection.
             # Otherwise the user will not be able to select a shape.
             self.setHiding(True)
@@ -780,9 +776,9 @@ class Canvas(QWidget):
             for shape in reversed(self.shapes):
                 if self.isVisible(shape) and shape.containsPoint(point):
                     self.setHiding()
-                    if shape not in self.selectedShapes:
+                    if shape not in self.selected_shapes:
                         if multiple_selection_mode:
-                            self.selection_changed_signal.emit(self.selectedShapes + [shape])
+                            self.selection_changed_signal.emit(self.selected_shapes + [shape])
                         else:
                             self.selection_changed_signal.emit([shape])
                         self.hShapeIsSelected = False
@@ -797,7 +793,7 @@ class Canvas(QWidget):
         right = 0
         top = self.pixmap.height() - 1
         bottom = 0
-        for s in self.selectedShapes:
+        for s in self.selected_shapes:
             rect = s.boundingRect()
             if rect.left() < left:
                 left = rect.left()
@@ -833,11 +829,6 @@ class Canvas(QWidget):
                 min(0, self.pixmap.width() - o2.x()),
                 min(0, self.pixmap.height() - o2.y()),
             )
-        # XXX: The next line tracks the new position of the cursor
-        # relative to the shape, but also results in making it
-        # a bit "shaky" when nearing the border and allows it to
-        # go outside of the shape's area for some reason.
-        # self.calculateOffsets(self.selectedShapes, pos)
         dp = pos - self.prevPoint
         if dp:
             for shape in shapes:
@@ -847,7 +838,7 @@ class Canvas(QWidget):
         return False
 
     def deSelectShape(self):
-        if self.selectedShapes:
+        if self.selected_shapes:
             self.setHiding(False)
             self.selection_changed_signal.emit([])
             self.hShapeIsSelected = False
@@ -855,18 +846,18 @@ class Canvas(QWidget):
 
     def deleteSelected(self):
         deleted_shapes = []
-        if self.selectedShapes:
-            for shape in self.selectedShapes:
+        if self.selected_shapes:
+            for shape in self.selected_shapes:
                 self.shapes.remove(shape)
                 deleted_shapes.append(shape)
             self.storeShapes()
-            self.selectedShapes = []
+            self.selected_shapes = []
             self.update()
         return deleted_shapes
 
     def deleteShape(self, shape):
-        if shape in self.selectedShapes:
-            self.selectedShapes.remove(shape)
+        if shape in self.selected_shapes:
+            self.selected_shapes.remove(shape)
         if shape in self.shapes:
             self.shapes.remove(shape)
         self.storeShapes()
@@ -964,8 +955,8 @@ class Canvas(QWidget):
         return super(Canvas, self).minimumSizeHint()
 
     def moveByKeyboard(self, offset):
-        if self.selectedShapes:
-            self.boundedMoveShapes(self.selectedShapes, self.prevPoint + offset)
+        if self.selected_shapes:
+            self.boundedMoveShapes(self.selected_shapes, self.prevPoint + offset)
             self.repaint()
             self.movingShape = True
 
@@ -1177,7 +1168,7 @@ class EscapableQListWidget(QListWidget):
 
 class UniqueLabelQListWidget(EscapableQListWidget):
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         super(UniqueLabelQListWidget, self).mousePressEvent(event)
         if not self.indexAt(event.pos()).isValid():
             self.clearSelection()
@@ -1195,22 +1186,20 @@ class UniqueLabelQListWidget(EscapableQListWidget):
         item.setData(Qt.ItemDataRole.UserRole, label)
         return item
 
-    def setItemLabel(self, item, label, color=None):
+    def setItemLabel(self, item, label, color=None) -> None:
         qlabel = QLabel()
         if color is None:
             qlabel.setText('{}'.format(label))
         else:
-            qlabel.setText(
-                '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                    html.escape(label), *color))
-        qlabel.setAlignment(Qt.AlignBottom)
+            qlabel.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(html.escape(label), *color))
+        qlabel.setAlignment(Qt.AlignmentFlag.AlignBottom)
         item.setSizeHint(qlabel.sizeHint())
         self.setItemWidget(item, qlabel)
 
 
 class LabelQLineEdit(QLineEdit):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super(LabelQLineEdit, self).__init__(parent)
         self.list_widget: Optional[QListWidget] = None
 
@@ -1226,7 +1215,7 @@ class LabelQLineEdit(QLineEdit):
 
 class HTMLDelegate(QStyledItemDelegate):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None) -> None:
         super(HTMLDelegate, self).__init__()
         self.doc = QTextDocument(self)
 
@@ -1239,27 +1228,19 @@ class HTMLDelegate(QStyledItemDelegate):
         self.doc.setHtml(options.text)
         options.text = ''
 
-        style = (
-            QApplication.style()
-            if options.widget is None
-            else options.widget.style()
-        )
-        style.drawControl(QStyle.CE_ItemViewItem, options, painter)
+        style = QApplication.style() if (options.widget is None) else options.widget.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, options, painter)
 
         ctx = QAbstractTextDocumentLayout.PaintContext()
-
-        if option.state & QStyle.State_Selected:
+        if option.state & QStyle.StateFlag.State_Selected:
             ctx.palette.setColor(
-                QPalette.Text,
-                option.palette.color(QPalette.Active, QPalette.HighlightedText),
-            )
+                QPalette.ColorRole.Text,
+                option.palette.color(QPalette.ColorGroup.Active, QPalette.ColorRole.HighlightedText))
         else:
             ctx.palette.setColor(
-                QPalette.Text,
-                option.palette.color(QPalette.Active, QPalette.Text),
-            )
-
-        textRect = style.subElementRect(QStyle.SE_ItemViewItemText, options)
+                QPalette.ColorRole.Text,
+                option.palette.color(QPalette.ColorGroup.Active, QPalette.ColorRole.Text))
+        textRect = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, options)
 
         if index.column() != 0:
             textRect.adjust(5, 0, 0, 0)
@@ -1279,8 +1260,7 @@ class HTMLDelegate(QStyledItemDelegate):
         thefuckyourshitup_constant = 4
         return QSize(
             int(self.doc.idealWidth()),
-            int(self.doc.size().height() - thefuckyourshitup_constant),
-        )
+            int(self.doc.size().height() - thefuckyourshitup_constant))
 
 
 class StandardItemModel(QStandardItemModel):
@@ -1295,24 +1275,24 @@ class StandardItemModel(QStandardItemModel):
 
 class LabelListWidgetItem(QStandardItem):
 
-    def __init__(self, text=None, shape=None):
+    def __init__(self, text=None, shape=None) -> None:
         super(LabelListWidgetItem, self).__init__()
         self.setText(text or '')
         self.setShape(shape)
 
         self.setCheckable(True)
-        self.setCheckState(Qt.Checked)
+        self.setCheckState(Qt.CheckState.Checked)
         self.setEditable(False)
-        self.setTextAlignment(Qt.AlignBottom)
+        self.setTextAlignment(Qt.AlignmentFlag.AlignBottom)
 
     def clone(self):
         return LabelListWidgetItem(self.text(), self.shape())
 
     def setShape(self, shape):
-        self.setData(shape, Qt.UserRole)
+        self.setData(shape, Qt.ItemDataRole.UserRole)
 
     def shape(self):
-        return self.data(Qt.UserRole)
+        return self.data(Qt.ItemDataRole.UserRole)
 
     def __hash__(self):
         return id(self)
@@ -1507,7 +1487,7 @@ class LabelDialog(QDialog):
             self.label_list_widget.setCurrentItem(items[0])
             row = self.label_list_widget.row(items[0])
             self.edit.completer().setCurrentRow(row)
-        self.edit.setFocus(Qt.PopupFocusReason)
+        self.edit.setFocus(Qt.FocusReason.PopupFocusReason)
         if move:
             self.move(QCursor.pos())
         if self.exec_():
@@ -1737,7 +1717,7 @@ class MainWindow(QMainWindow):
         self.action_fit_width = self.__new_action(self.tr('Fit &Width'), slot=self.__set_fit_width, shortcut=shortcuts['fit_width'], icon='fit-width', tip=self.tr('Zoom follows window width'), checkable=True, enabled=False)
         self.action_brightness_contrast = self.__new_action(self.tr('&Brightness Contrast'), slot=self.__brightness_contrast, shortcut=None, icon='color', tip=self.tr('Adjust brightness and contrast'), enabled=False)
 
-        self.action_fit_window.setChecked(Qt.Checked)
+        self.action_fit_window.setChecked(Qt.CheckState.Checked)
         self.scalers = {
             ZOOM_MODE_FIT_WINDOW: self.__scale_fit_window,
             ZOOM_MODE_FIT_WIDTH: self.__scale_fit_width,
@@ -1990,7 +1970,7 @@ class MainWindow(QMainWindow):
                 imageWidth=self.image.width())
             items = self.file_list.findItems(image_path, Qt.MatchExactly)
             if len(items) == 1:
-                items[0].setCheckState(Qt.Checked)
+                items[0].setCheckState(Qt.CheckState.Checked)
             self.__set_clean()
         except LabelFileError as e:
             self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
@@ -2123,11 +2103,11 @@ class MainWindow(QMainWindow):
 
     def __shape_selection_changed(self, selected_shapes):
         self._noSelectionSlot = True
-        for shape in self.canvas.selectedShapes:
+        for shape in self.canvas.selected_shapes:
             shape.selected = False
         self.quad_list.clearSelection()
-        self.canvas.selectedShapes = selected_shapes
-        for shape in self.canvas.selectedShapes:
+        self.canvas.selected_shapes = selected_shapes
+        for shape in self.canvas.selected_shapes:
             shape.selected = True
             item = self.quad_list.findItemByShape(shape)
             self.quad_list.selectItem(item)
@@ -2191,7 +2171,7 @@ class MainWindow(QMainWindow):
                 action.setEnabled(False)
 
     def __copy_selected_quad(self) -> None:
-        self._copied_shapes = [s.copy() for s in self.canvas.selectedShapes]
+        self._copied_shapes = [s.copy() for s in self.canvas.selected_shapes]
         self.action_paste.setEnabled(len(self._copied_shapes) > 0)
 
     def __paste_selected_shape(self) -> None:
@@ -2212,7 +2192,7 @@ class MainWindow(QMainWindow):
 
     def __label_item_changed(self, item) -> None:
         shape = item.shape()
-        self.canvas.setShapeVisible(shape, item.checkState() == Qt.Checked)
+        self.canvas.setShapeVisible(shape, item.checkState() == Qt.CheckState.Checked)
 
     def __label_order_changed(self) -> None:
         self.__set_dirty()
@@ -2222,7 +2202,7 @@ class MainWindow(QMainWindow):
         items = self.label_list.selectedItems()
         text = None
         if items:
-            text = items[0].data(Qt.UserRole)
+            text = items[0].data(Qt.ItemDataRole.UserRole)
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
             text = self.label_dialog.popUp(text)
@@ -2276,8 +2256,8 @@ class MainWindow(QMainWindow):
             canvas_scale_factor = canvas_width_new / canvas_width_old
             x_shift = round(pos.x() * canvas_scale_factor) - pos.x()
             y_shift = round(pos.y() * canvas_scale_factor) - pos.y()
-            self.__set_scroll(Qt.Horizontal, self.scroll_bars[Qt.Horizontal].value() + x_shift)
-            self.__set_scroll(Qt.Vertical, self.scroll_bars[Qt.Vertical].value() + y_shift)
+            self.__set_scroll(Qt.Orientation.Horizontal, self.scroll_bars[Qt.Orientation.Horizontal].value() + x_shift)
+            self.__set_scroll(Qt.Orientation.Vertical, self.scroll_bars[Qt.Orientation.Vertical].value() + y_shift)
 
     def __set_fit_window(self) -> None:
         self.action_fit_width.setChecked(False)
@@ -2315,8 +2295,8 @@ class MainWindow(QMainWindow):
         flag = value
         for item in self.quad_list:
             if value is None:
-                flag = item.checkState() == Qt.Unchecked
-            item.setCheckState(Qt.Checked if flag else Qt.Unchecked)
+                flag = item.checkState() == Qt.CheckState.Unchecked
+            item.setCheckState(Qt.CheckState.Checked if flag else Qt.CheckState.Unchecked)
 
     def __paint_canvas(self) -> None:
         assert not self.image.isNull(), 'cannot paint null image'
@@ -2398,7 +2378,7 @@ class MainWindow(QMainWindow):
 
     def __copy_quad(self) -> None:
         self.canvas.end_copy_move()
-        for quad in self.canvas.selectedShapes:
+        for quad in self.canvas.selected_shapes:
             self.__add_quad(quad)
         self.quad_list.clearSelection()
         self.__set_dirty()
@@ -2411,7 +2391,7 @@ class MainWindow(QMainWindow):
             dir_path = self.image_dir
         dir_path = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Image Directory'), dir_path,
-            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
+            QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks))
         self.__import_dir_images(dir_path)
 
     def __open_annot_dir_dialog(self) -> None:
@@ -2423,8 +2403,9 @@ class MainWindow(QMainWindow):
             dir_path = self.image_dir
         self.annot_dir = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
-            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
-        if osp.exists(self.__current_annot_path()):
+            QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks))
+        current_annot_path = self.__current_annot_path()
+        if (current_annot_path is not None) and osp.exists(current_annot_path):
             self.__load()
         self.__refresh_file_check_state()
 
@@ -2464,9 +2445,9 @@ class MainWindow(QMainWindow):
             image_path = osp.join(self.image_dir, item.text())
             annot_path = osp.join(self.annot_dir, osp.splitext(osp.basename(image_path))[0] + '.json')
             if QFile.exists(annot_path) and LabelFile.is_label_file(annot_path):
-                item.setCheckState(Qt.Checked)
+                item.setCheckState(Qt.CheckState.Checked)
             else:
-                item.setCheckState(Qt.Unchecked)
+                item.setCheckState(Qt.CheckState.Unchecked)
 
     def __current_image_path(self) -> Optional[str]:
         if (self.file_list.currentRow() < 0) or \
