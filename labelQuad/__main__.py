@@ -247,22 +247,6 @@ class Shape(object):
                 min_i = i
         return min_i
 
-    def nearestEdge(self, point, epsilon):
-        min_distance = float('inf')
-        post_i = None
-        point = QPointF(point.x() * self.scale, point.y() * self.scale)
-        for i in range(len(self.points)):
-            start = self.points[i - 1]
-            end = self.points[i]
-            start = QPointF(start.x() * self.scale, start.y() * self.scale)
-            end = QPointF(end.x() * self.scale, end.y() * self.scale)
-            line = [start, end]
-            dist = distancetoline(point, line)
-            if dist <= epsilon and dist < min_distance:
-                min_distance = dist
-                post_i = i
-        return post_i
-
     def containsPoint(self, point):
         return self.makePath().contains(point)
 
@@ -338,8 +322,6 @@ class Canvas(QWidget):
         self.prevhShape = None
         self.hVertex = None
         self.prevhVertex = None
-        self.hEdge = None
-        self.prevhEdge = None
         self.movingShape = False
         self.snapping = True
         self.hShapeIsSelected = False
@@ -463,30 +445,15 @@ class Canvas(QWidget):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
             index = shape.nearestVertex(pos, self.epsilon)
-            index_edge = shape.nearestEdge(pos, self.epsilon)
             if index is not None:
                 if self.selectedVertex():
                     self.hShape.highlightClear()
                 self.prevhVertex = self.hVertex = index
                 self.prevhShape = self.hShape = shape
-                self.prevhEdge = self.hEdge
-                self.hEdge = None
                 shape.highlightVertex(index, shape.MOVE_VERTEX)
                 self.overrideCursor(CURSOR_POINT)
                 self.setToolTip(self.tr('Click & Drag to move point\n'
                                         'ALT + SHIFT + Click to delete point'))
-                self.setStatusTip(self.toolTip())
-                self.update()
-                break
-            elif index_edge is not None:
-                if self.selectedVertex():
-                    self.hShape.highlightClear()
-                self.prevhVertex = self.hVertex
-                self.hVertex = None
-                self.prevhShape = self.hShape = shape
-                self.prevhEdge = self.hEdge = index_edge
-                self.overrideCursor(CURSOR_POINT)
-                self.setToolTip(self.tr('ALT + Click to create point'))
                 self.setStatusTip(self.toolTip())
                 self.update()
                 break
@@ -496,8 +463,6 @@ class Canvas(QWidget):
                 self.prevhVertex = self.hVertex
                 self.hVertex = None
                 self.prevhShape = self.hShape = shape
-                self.prevhEdge = self.hEdge
-                self.hEdge = None
                 self.setToolTip(self.tr('Click & drag to move shape "%s"') % shape.label)
                 self.setStatusTip(self.toolTip())
                 self.overrideCursor(CURSOR_GRAB)
@@ -527,11 +492,8 @@ class Canvas(QWidget):
                     self.drawing_polygon_signal.emit(True)
                     self.update()
             elif self.editing():
-                if   (self.selectedEdge()) and \
-                     (event.modifiers() == Qt.KeyboardModifier.AltModifier):
-                    self.addPointToEdge()
-                elif (self.selectedVertex()) and \
-                     (event.modifiers() == (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier)):
+                if (self.selectedVertex()) and \
+                   (event.modifiers() == (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier)):
                     self.removeSelectedPoint()
                 group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
@@ -701,27 +663,10 @@ class Canvas(QWidget):
             self.update()
         self.prevhShape = self.hShape
         self.prevhVertex = self.hVertex
-        self.prevhEdge = self.hEdge
-        self.hShape = self.hVertex = self.hEdge = None
+        self.hShape = self.hVertex = None
 
     def selectedVertex(self):
         return self.hVertex is not None
-
-    def selectedEdge(self):
-        return self.hEdge is not None
-
-    def addPointToEdge(self):
-        shape = self.prevhShape
-        index = self.prevhEdge
-        point = self.prevMovePoint
-        if shape is None or index is None or point is None:
-            return
-        shape.insertPoint(index, point)
-        shape.highlightVertex(index, shape.MOVE_VERTEX)
-        self.hShape = shape
-        self.hVertex = index
-        self.hEdge = None
-        self.movingShape = True
 
     def removeSelectedPoint(self):
         shape = self.prevhShape
@@ -810,7 +755,7 @@ class Canvas(QWidget):
         y2 = bottom - point.y()
         self.offsets = QPointF(x1, y1), QPointF(x2, y2)
 
-    def boundedMoveVertex(self, pos):
+    def boundedMoveVertex(self, pos: QPointF) -> None:
         index, shape = self.hVertex, self.hShape
         point = shape[index]
         if self.outOfPixmap(pos):
@@ -1001,7 +946,6 @@ class Canvas(QWidget):
         self.current = None
         self.hShape = None
         self.hVertex = None
-        self.hEdge = None
         self.update()
 
     def setShapeVisible(self, shape, value):
