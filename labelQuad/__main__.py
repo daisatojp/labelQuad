@@ -785,14 +785,6 @@ class Canvas(QWidget):
             self.update()
         return deleted_shapes
 
-    def deleteShape(self, shape):
-        if shape in self.selected_shapes:
-            self.selected_shapes.remove(shape)
-        if shape in self.shapes:
-            self.shapes.remove(shape)
-        self.storeShapes()
-        self.update()
-
     def transformPos(self, point):
         """Convert from widget-logical coordinates to painter-logical ones."""
         return point / self.scale - self.offsetToCenter()
