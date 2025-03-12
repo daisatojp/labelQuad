@@ -5,6 +5,7 @@ import copy
 from functools import partial
 from glob import glob
 import html
+from itertools import chain
 import math
 import os
 import os.path as osp
@@ -434,7 +435,10 @@ class Canvas(QWidget):
             return
 
         self.setToolTip(self.tr('Image'))
-        for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
+        shapes_visible: list[Shape] = [shape for shape in self.shapes if self.isVisible(shape)]
+        shapes_selected: list[Shape] = [shape for shape in shapes_visible if shape.selected]
+        shapes_not_selected: list[Shape] = [shape for shape in shapes_visible if not shape.selected]
+        for shape in chain(shapes_selected, shapes_not_selected):
             index = shape.nearestVertex(pos, self.epsilon)
             if index is not None:
                 if self.selectedVertex():
