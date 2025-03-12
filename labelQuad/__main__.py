@@ -110,11 +110,9 @@ class Shape(object):
     point_size = 8
     scale = 1.0
 
-    def __init__(
-            self,
-            label=None,
-            line_color=None,
-            flags=None):
+    def __init__(self,
+                 label=None,
+                 line_color=None):
         self.label = label
         self.points = []
         self.point_labels = []
@@ -122,7 +120,6 @@ class Shape(object):
         self._points_raw = []
         self.fill = False
         self.selected = False
-        self.flags = flags
         self.other_data = {}
 
         self._highlightIndex = None
@@ -1029,10 +1026,9 @@ class Canvas(QWidget):
 
                 self.movingShape = False
 
-    def setLastLabel(self, text, flags):
+    def setLastLabel(self, text):
         assert text
         self.shapes[-1].label = text
-        self.shapes[-1].flags = flags
         self.shapesBackups.pop()
         self.storeShapes()
         return self.shapes[-1]
@@ -1138,15 +1134,13 @@ class LabelFile(object):
             'version',
             'imageData',
             'imagePath',
-            'shapes',  # polygonal annotations
-            'flags',  # image level flags
+            'shapes',
             'imageHeight',
             'imageWidth',
         ]
         shape_keys = [
             'label',
-            'points',
-            'flags']
+            'points']
         try:
             with open(filename, 'r') as f:
                 data = json.load(f)
@@ -1157,7 +1151,6 @@ class LabelFile(object):
                 # relative path from label file to relative path from cwd
                 imagePath = osp.join(osp.dirname(filename), data['imagePath'])
                 imageData = self.load_image_file(imagePath)
-            flags = data.get('flags') or {}
             imagePath = data['imagePath']
             self._check_image_height_and_width(
                 base64.b64encode(imageData).decode('utf-8'),
@@ -1168,7 +1161,6 @@ class LabelFile(object):
                 dict(
                     label=s['label'],
                     points=s['points'],
-                    flags=s.get('flags', {}),
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
                 for s in data['shapes']
@@ -1181,8 +1173,6 @@ class LabelFile(object):
             if key not in keys:
                 otherData[key] = value
 
-        # Only replace data after everything is loaded.
-        self.flags = flags
         self.shapes = shapes
         self.imagePath = imagePath
         self.imageData = imageData
@@ -1207,16 +1197,14 @@ class LabelFile(object):
         return imageHeight, imageWidth
 
     def save(
-        self,
-        filename,
-        shapes,
-        imagePath,
-        imageHeight,
-        imageWidth,
-        imageData=None,
-        otherData=None,
-        flags=None,
-    ):
+            self,
+            filename,
+            shapes,
+            imagePath,
+            imageHeight,
+            imageWidth,
+            imageData=None,
+            otherData=None):
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode('utf-8')
             imageHeight, imageWidth = self._check_image_height_and_width(
@@ -1224,8 +1212,6 @@ class LabelFile(object):
             )
         if otherData is None:
             otherData = {}
-        if flags is None:
-            flags = {}
         data = dict(
             version=__version__,
             shapes=shapes,
@@ -1481,16 +1467,14 @@ class LabelListWidget(QListView):
 
 class LabelDialog(QDialog):
 
-    def __init__(
-            self,
-            text='Enter object label',
-            parent=None,
-            labels=None,
-            sort_labels=True,
-            show_text_field=True,
-            completion='startswith',
-            fit_to_content=None,
-            flags=None):
+    def __init__(self,
+                 text='Enter object label',
+                 parent=None,
+                 labels=None,
+                 sort_labels=True,
+                 show_text_field=True,
+                 completion='startswith',
+                 fit_to_content=None):
         if fit_to_content is None:
             fit_to_content = {'row': False, 'column': True}
         self._fit_to_content = fit_to_content
@@ -1500,8 +1484,6 @@ class LabelDialog(QDialog):
         self.edit.setPlaceholderText(text)
         self.edit.setValidator(labelValidator())
         self.edit.editingFinished.connect(self.postProcess)
-        if flags:
-            self.edit.textChanged.connect(self.updateFlags)
         layout = QVBoxLayout()
         if show_text_field:
             layout.addWidget(self.edit)
@@ -1534,14 +1516,6 @@ class LabelDialog(QDialog):
         self.labelList.setFixedHeight(150)
         self.edit.setListWidget(self.labelList)
         layout.addWidget(self.labelList)
-        # label_flags
-        if flags is None:
-            flags = {}
-        self._flags = flags
-        self.flagsLayout = QVBoxLayout()
-        self.resetFlags()
-        layout.addItem(self.flagsLayout)
-        self.edit.textChanged.connect(self.updateFlags)
         self.setLayout(layout)
         # completion
         completer = QCompleter()
@@ -1591,47 +1565,7 @@ class LabelDialog(QDialog):
             text = text.trimmed()
         self.edit.setText(text)
 
-    def updateFlags(self, label_new):
-        # keep state of shared flags
-        flags_old = self.getFlags()
-
-        flags_new = {}
-        for pattern, keys in self._flags.items():
-            if re.match(pattern, label_new):
-                for key in keys:
-                    flags_new[key] = flags_old.get(key, False)
-        self.setFlags(flags_new)
-
-    def deleteFlags(self):
-        for i in reversed(range(self.flagsLayout.count())):
-            item = self.flagsLayout.itemAt(i).widget()
-            self.flagsLayout.removeWidget(item)
-            item.setParent(None)
-
-    def resetFlags(self, label=''):
-        flags = {}
-        for pattern, keys in self._flags.items():
-            if re.match(pattern, label):
-                for key in keys:
-                    flags[key] = False
-        self.setFlags(flags)
-
-    def setFlags(self, flags):
-        self.deleteFlags()
-        for key in flags:
-            item = QCheckBox(key, self)
-            item.setChecked(flags[key])
-            self.flagsLayout.addWidget(item)
-            item.show()
-
-    def getFlags(self):
-        flags = {}
-        for i in range(self.flagsLayout.count()):
-            item = self.flagsLayout.itemAt(i).widget()
-            flags[item.text()] = item.isChecked()
-        return flags
-
-    def popUp(self, text=None, move=True, flags=None):
+    def popUp(self, text=None, move=True):
         if self._fit_to_content['row']:
             self.labelList.setMinimumHeight(
                 self.labelList.sizeHintForRow(0) * self.labelList.count() + 2)
@@ -1640,10 +1574,6 @@ class LabelDialog(QDialog):
         # if text is None, the previous label in self.edit is kept
         if text is None:
             text = self.edit.text()
-        if flags:
-            self.setFlags(flags)
-        else:
-            self.resetFlags(text)
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
         items = self.labelList.findItems(text, Qt.MatchFixedString)
@@ -1657,9 +1587,9 @@ class LabelDialog(QDialog):
         if move:
             self.move(QCursor.pos())
         if self.exec_():
-            return self.edit.text(), self.getFlags()
+            return self.edit.text()
         else:
-            return None, None
+            return None
 
 
 class BrightnessContrastDialog(QDialog):
@@ -2380,12 +2310,12 @@ class MainWindow(QMainWindow):
             text = items[0].data(Qt.UserRole)
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text, _ = self.label_dialog.popUp(text)
+            text = self.label_dialog.popUp(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text:
             self.quad_list.clearSelection()
-            shape = self.canvas.setLastLabel(text, None)
+            shape = self.canvas.setLastLabel(text)
             self.__add_quad(shape)
             self.action_edit_mode.setEnabled(True)
             self.action_undo_last_point.setEnabled(False)
@@ -2712,8 +2642,6 @@ def get_default_config():
                 'keep_prev_contrast: false',
                 'logger_level: info',
                 '',
-                'flags: null',
-                'label_flags: null',
                 'labels: null',
                 'file_search: null',
                 'sort_labels: true',
@@ -3020,11 +2948,6 @@ def main():
     default_config_file = os.path.join(os.path.expanduser('~'), '.labelQuadrc')
     parser.add_argument('--config', dest='config', default=default_config_file)
     parser.add_argument(
-        '--flags',
-        help='comma separated list of flags OR file containing flags',
-        default=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         '--labels',
         help='comma separated list of labels OR file containing labels',
         default=argparse.SUPPRESS,
@@ -3054,26 +2977,12 @@ def main():
         print('{0} {1}'.format(__appname__, __version__))
         sys.exit(0)
 
-    if hasattr(args, 'flags'):
-        if os.path.isfile(args.flags):
-            with codecs.open(args.flags, 'r', encoding='utf-8') as f:
-                args.flags = [line.strip() for line in f if line.strip()]
-        else:
-            args.flags = [line for line in args.flags.split(',') if line]
-
     if hasattr(args, 'labels'):
         if os.path.isfile(args.labels):
             with codecs.open(args.labels, 'r', encoding='utf-8') as f:
                 args.labels = [line.strip() for line in f if line.strip()]
         else:
             args.labels = [line for line in args.labels.split(',') if line]
-
-    if hasattr(args, 'label_flags'):
-        if os.path.isfile(args.label_flags):
-            with codecs.open(args.label_flags, 'r', encoding='utf-8') as f:
-                args.label_flags = yaml.safe_load(f)
-        else:
-            args.label_flags = yaml.safe_load(args.label_flags)
 
     config_from_args = args.__dict__
     config_from_args.pop('version')
