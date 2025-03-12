@@ -118,7 +118,6 @@ class Shape(object):
         self.points = []
         self.point_labels = []
         self._shape_raw = None
-        self._points_raw = []
         self.fill = False
         self.selected = False
         self.other_data = {}
@@ -365,7 +364,7 @@ class Canvas(QWidget):
         self.menus = [QMenu(), QMenu()]
         # Set widget options.
         self.setMouseTracking(True)
-        self.setFocusPolicy(Qt.WheelFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
 
         self._ai_model = None
 
@@ -453,10 +452,9 @@ class Canvas(QWidget):
     def selectedEdge(self):
         return self.hEdge is not None
 
-    def mouseMoveEvent(self, ev):
-        """Update line with last point and current coordinates."""
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         try:
-            pos = self.transformPos(ev.localPos())
+            pos = self.transformPos(event.localPos())
         except AttributeError:
             return
 
@@ -475,11 +473,9 @@ class Canvas(QWidget):
                 # Don't allow the user to draw outside the pixmap.
                 # Project the point to the pixmap's edges.
                 pos = self.intersectionPoint(self.current[-1], pos)
-            elif (
-                self.snapping
-                and len(self.current) > 1
-                and self.closeEnough(pos, self.current[0])
-            ):
+            elif (self.snapping
+                  and len(self.current) > 1
+                  and self.closeEnough(pos, self.current[0])):
                 # Attract line to starting point and
                 # colorise to alert the user.
                 pos = self.current[0]
@@ -492,8 +488,7 @@ class Canvas(QWidget):
             self.current.highlightClear()
             return
 
-        # Polygon copy moving.
-        if Qt.RightButton & ev.buttons():
+        if Qt.MouseButton.RightButton & event.buttons():
             if self.selectedShapesCopy and self.prevPoint:
                 self.overrideCursor(CURSOR_MOVE)
                 self.boundedMoveShapes(self.selectedShapesCopy, pos)
@@ -503,8 +498,7 @@ class Canvas(QWidget):
                 self.repaint()
             return
 
-        # Polygon/Vertex moving.
-        if Qt.LeftButton & ev.buttons():
+        if Qt.MouseButton.LeftButton & event.buttons():
             if self.selectedVertex():
                 self.boundedMoveVertex(pos)
                 self.repaint()
@@ -535,12 +529,8 @@ class Canvas(QWidget):
                 self.hEdge = None
                 shape.highlightVertex(index, shape.MOVE_VERTEX)
                 self.overrideCursor(CURSOR_POINT)
-                self.setToolTip(
-                    self.tr(
-                        'Click & Drag to move point\n'
-                        'ALT + SHIFT + Click to delete point'
-                    )
-                )
+                self.setToolTip(self.tr('Click & Drag to move point\n'
+                                        'ALT + SHIFT + Click to delete point'))
                 self.setStatusTip(self.toolTip())
                 self.update()
                 break
@@ -599,12 +589,10 @@ class Canvas(QWidget):
         self.prevhVertex = None
         self.movingShape = True  # Save changes
 
-    def mousePressEvent(self, ev):
-        pos = self.transformPos(ev.localPos())
-        
-        is_shift_pressed = ev.modifiers() & Qt.ShiftModifier
-
-        if ev.button() == Qt.LeftButton:
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        pos = self.transformPos(event.localPos())
+        is_shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        if event.button() == Qt.MouseButton.LeftButton:
             if self.drawing():
                 if self.current:
                     self.current.addPoint(self.line[1])
@@ -621,22 +609,20 @@ class Canvas(QWidget):
                     self.drawingPolygon.emit(True)
                     self.update()
             elif self.editing():
-                if self.selectedEdge() and ev.modifiers() == Qt.AltModifier:
+                if   (self.selectedEdge()) and \
+                     (event.modifiers() == Qt.KeyboardModifier.AltModifier):
                     self.addPointToEdge()
-                elif self.selectedVertex() and ev.modifiers() == (
-                    Qt.AltModifier | Qt.ShiftModifier
-                ):
+                elif (self.selectedVertex()) and \
+                     (event.modifiers() == (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier)):
                     self.removeSelectedPoint()
-
-                group_mode = int(ev.modifiers()) == Qt.ControlModifier
+                group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.prevPoint = pos
                 self.repaint()
-        elif ev.button() == Qt.RightButton and self.editing():
-            group_mode = int(ev.modifiers()) == Qt.ControlModifier
-            if not self.selectedShapes or (
-                self.hShape is not None and self.hShape not in self.selectedShapes
-            ):
+        elif event.button() == Qt.MouseButton.RightButton and self.editing():
+            group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
+            if (not self.selectedShapes) or \
+               ((self.hShape is not None) and (self.hShape not in self.selectedShapes)):
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.repaint()
             self.prevPoint = pos
@@ -1184,16 +1170,12 @@ class LabelFile(object):
     def _check_image_height_and_width(imageData, imageHeight, imageWidth):
         img_arr = img_b64_to_arr(imageData)
         if imageHeight is not None and img_arr.shape[0] != imageHeight:
-            logger.error(
-                'imageHeight does not match with imageData or imagePath, '
-                'so getting imageHeight from actual image.'
-            )
+            logger.error('imageHeight does not match with imageData or imagePath, '
+                         'so getting imageHeight from actual image.')
             imageHeight = img_arr.shape[0]
         if imageWidth is not None and img_arr.shape[1] != imageWidth:
-            logger.error(
-                'imageWidth does not match with imageData or imagePath, '
-                'so getting imageWidth from actual image.'
-            )
+            logger.error('imageWidth does not match with imageData or imagePath, '
+                         'so getting imageWidth from actual image.')
             imageWidth = img_arr.shape[1]
         return imageHeight, imageWidth
 
@@ -1209,8 +1191,7 @@ class LabelFile(object):
         if imageData is not None:
             imageData = base64.b64encode(imageData).decode('utf-8')
             imageHeight, imageWidth = self._check_image_height_and_width(
-                imageData, imageHeight, imageWidth
-            )
+                imageData, imageHeight, imageWidth)
         if otherData is None:
             otherData = {}
         data = dict(
@@ -1218,8 +1199,7 @@ class LabelFile(object):
             shapes=shapes,
             imagePath=imagePath,
             imageHeight=imageHeight,
-            imageWidth=imageWidth,
-        )
+            imageWidth=imageWidth)
         for key, value in otherData.items():
             assert key not in data
             data[key] = value
@@ -1236,9 +1216,10 @@ class LabelFile(object):
 
 
 class EscapableQListWidget(QListWidget):
-    def keyPressEvent(self, event):
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         super(EscapableQListWidget, self).keyPressEvent(event)
-        if event.key() == Qt.Key_Escape:
+        if event.key() == Qt.Key.Key_Escape:
             self.clearSelection()
 
 
@@ -1252,14 +1233,14 @@ class UniqueLabelQListWidget(EscapableQListWidget):
     def findItemByLabel(self, label):
         for row in range(self.count()):
             item = self.item(row)
-            if item.data(Qt.UserRole) == label:
+            if item.data(Qt.ItemDataRole.UserRole) == label:
                 return item
 
     def createItemFromLabel(self, label):
         if self.findItemByLabel(label):
             raise ValueError('Item for label "{}" already exists'.format(label))
         item = QListWidgetItem()
-        item.setData(Qt.UserRole, label)
+        item.setData(Qt.ItemDataRole.UserRole, label)
         return item
 
     def setItemLabel(self, item, label, color=None):
@@ -1677,8 +1658,8 @@ class MainWindow(QMainWindow):
         self.recent_files: list[str] = []
         self.brightness_contrast_values = {}
         self.scroll_values = {
-            Qt.Horizontal: {},
-            Qt.Vertical: {}}
+            Qt.Orientation.Horizontal: {},
+            Qt.Orientation.Vertical: {}}
         self._noSelectionSlot = False
         self._copied_shapes = None
 
