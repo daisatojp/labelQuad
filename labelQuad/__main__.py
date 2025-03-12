@@ -38,16 +38,16 @@ __version__ = '1.1.0'
 
 
 LABEL_COLORMAP = imgviz.label_colormap()
-ZOOM_MODE_FIT_WINDOW = 0
-ZOOM_MODE_FIT_WIDTH = 1
-ZOOM_MODE_MANUAL_ZOOM = 2
-MAX_RECENT_FILES = 7
-CURSOR_DEFAULT = Qt.ArrowCursor
-CURSOR_POINT = Qt.PointingHandCursor
-CURSOR_DRAW = Qt.CrossCursor
-CURSOR_MOVE = Qt.ClosedHandCursor
-CURSOR_GRAB = Qt.OpenHandCursor
-MOVE_SPEED = 5.0
+ZOOM_MODE_FIT_WINDOW: int = 0
+ZOOM_MODE_FIT_WIDTH: int = 1
+ZOOM_MODE_MANUAL_ZOOM: int = 2
+MAX_RECENT_FILES: int = 7
+CURSOR_DEFAULT: Qt.CursorShape = Qt.CursorShape.ArrowCursor
+CURSOR_POINT  : Qt.CursorShape = Qt.CursorShape.PointingHandCursor
+CURSOR_DRAW   : Qt.CursorShape = Qt.CursorShape.CrossCursor
+CURSOR_MOVE   : Qt.CursorShape = Qt.CursorShape.ClosedHandCursor
+CURSOR_GRAB   : Qt.CursorShape = Qt.CursorShape.OpenHandCursor
+MOVE_SPEED: float = 5.0
 
 
 class ToolBar(QToolBar):
@@ -59,7 +59,7 @@ class ToolBar(QToolBar):
         layout.setSpacing(0)
         layout.setContentsMargins(*m)
         self.setContentsMargins(*m)
-        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
 
     def addAction(self, action):
         if isinstance(action, QWidgetAction):
@@ -68,24 +68,22 @@ class ToolBar(QToolBar):
         btn.setDefaultAction(action)
         btn.setToolButtonStyle(self.toolButtonStyle())
         self.addWidget(btn)
-
-        # center align
         for i in range(self.layout().count()):
             if isinstance(self.layout().itemAt(i).widget(), QToolButton):
-                self.layout().itemAt(i).setAlignment(Qt.AlignCenter)
+                self.layout().itemAt(i).setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
 class ZoomWidget(QSpinBox):
 
     def __init__(self, value=100):
         super(ZoomWidget, self).__init__()
-        self.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.setRange(1, 1000)
         self.setSuffix(' %')
         self.setValue(value)
         self.setToolTip('Zoom Level')
         self.setStatusTip(self.toolTip())
-        self.setAlignment(Qt.AlignCenter)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def minimumSizeHint(self):
         height = super(ZoomWidget, self).minimumSizeHint().height()
@@ -183,13 +181,12 @@ class Shape(object):
     def setOpen(self):
         self._closed = False
 
-    def paint(self, painter):
+    def paint(self, painter: QPainter) -> None:
         if not self.points:
             return
 
         color = self.select_line_color if self.selected else self.line_color
         pen = QPen(color)
-        # Try using integer sizes for smoother drawing(?)
         pen.setWidth(self.PEN_WIDTH)
         painter.setPen(pen)
 
@@ -201,7 +198,7 @@ class Shape(object):
             line_path.moveTo(self.__scale_point(self.points[0]))
             for i, p in enumerate(self.points):
                 line_path.lineTo(self.__scale_point(p))
-                self.drawVertex(vrtx_path, i)
+                self.__draw_vertex(vrtx_path, i)
             if self.isClosed():
                 line_path.lineTo(self.__scale_point(self.points[0]))
 
@@ -217,24 +214,6 @@ class Shape(object):
             painter.setPen(pen)
             painter.drawPath(negative_vrtx_path)
             painter.fillPath(negative_vrtx_path, QColor(255, 0, 0, 255))
-
-    def drawVertex(self, path, i):
-        d = self.point_size
-        shape = self.point_type
-        point = self.__scale_point(self.points[i])
-        if i == self._highlightIndex:
-            size, shape = self._highlightSettings[self._highlightMode]
-            d *= size
-        if self._highlightIndex is not None:
-            self._vertex_fill_color = self.hvertex_fill_color
-        else:
-            self._vertex_fill_color = self.vertex_fill_color
-        if shape == self.P_SQUARE:
-            path.addRect(point.x() - d / 2, point.y() - d / 2, d, d)
-        elif shape == self.P_ROUND:
-            path.addEllipse(point, d / 2.0, d / 2.0)
-        else:
-            assert False, 'unsupported vertex shape'
 
     def nearestVertex(self, point, epsilon):
         min_distance = float('inf')
@@ -269,6 +248,22 @@ class Shape(object):
 
     def copy(self):
         return copy.deepcopy(self)
+
+    def __draw_vertex(self, path: QPainterPath, i: int) -> None:
+        d = self.point_size
+        shape = self.point_type
+        point = self.__scale_point(self.points[i])
+        if i == self._highlightIndex:
+            size, shape = self._highlightSettings[self._highlightMode]
+            d *= size
+        if self._highlightIndex is not None:
+            self._vertex_fill_color = self.hvertex_fill_color
+        else:
+            self._vertex_fill_color = self.vertex_fill_color
+        if shape == self.P_SQUARE:
+            path.addRect(point.x() - d / 2, point.y() - d / 2, d, d)
+        elif shape == self.P_ROUND:
+            path.addEllipse(point, d / 2.0, d / 2.0)
 
     def __make_path(self) -> QPainterPath:
         path = QPainterPath(self.points[0])
@@ -1530,7 +1525,7 @@ class MainWindow(QMainWindow):
 
         self.zoom_widget = ZoomWidget()
         zoom_label = QLabel(self.tr('Zoom'))
-        zoom_label.setAlignment(Qt.AlignCenter)
+        zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         zoom_box_layout = QVBoxLayout()
         zoom_box_layout.addWidget(zoom_label)
         zoom_box_layout.addWidget(self.zoom_widget)
