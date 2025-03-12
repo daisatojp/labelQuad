@@ -126,23 +126,23 @@ class Shape(object):
         self._highlightMode = self.NEAR_VERTEX
         self._highlightSettings = {
             self.NEAR_VERTEX: (4, self.P_ROUND),
-            self.MOVE_VERTEX: (1.5, self.P_SQUARE),
-        }
+            self.MOVE_VERTEX: (1.5, self.P_SQUARE)}
 
         self._closed = False
 
         if line_color is not None:
             self.line_color = line_color
 
-    def _scale_point(self, point: QPointF) -> QPointF:
-        return QPointF(point.x() * self.scale, point.y() * self.scale)
+    def __len__(self):
+        return len(self.points)
 
-    def setShapeRefined(self, points, point_labels):
-        self._shape_raw = (self.points, self.point_labels)
-        self.points = points
-        self.point_labels = point_labels
+    def __getitem__(self, key):
+        return self.points[key]
 
-    def restoreShapeRaw(self):
+    def __setitem__(self, key, value):
+        self.points[key] = value
+
+    def restore_shape_raw(self) -> None:
         if self._shape_raw is None:
             return
         self.points, self.point_labels = self._shape_raw
@@ -197,12 +197,12 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            line_path.moveTo(self._scale_point(self.points[0]))
+            line_path.moveTo(self.__scale_point(self.points[0]))
             for i, p in enumerate(self.points):
-                line_path.lineTo(self._scale_point(p))
+                line_path.lineTo(self.__scale_point(p))
                 self.drawVertex(vrtx_path, i)
             if self.isClosed():
-                line_path.lineTo(self._scale_point(self.points[0]))
+                line_path.lineTo(self.__scale_point(self.points[0]))
 
             painter.drawPath(line_path)
             if vrtx_path.length() > 0:
@@ -220,7 +220,7 @@ class Shape(object):
     def drawVertex(self, path, i):
         d = self.point_size
         shape = self.point_type
-        point = self._scale_point(self.points[i])
+        point = self.__scale_point(self.points[i])
         if i == self._highlightIndex:
             size, shape = self._highlightSettings[self._highlightMode]
             d *= size
@@ -281,43 +281,29 @@ class Shape(object):
     def moveVertexBy(self, i, offset):
         self.points[i] = self.points[i] + offset
 
-    def highlightVertex(self, i, action):
-        """Highlight a vertex appropriately based on the current action
-
-        Args:
-            i (int): The vertex index
-            action (int): The action
-            (see Shape.NEAR_VERTEX and Shape.MOVE_VERTEX)
-        """
+    def highlightVertex(self, i: int, action: int) -> None:
         self._highlightIndex = i
         self._highlightMode = action
 
-    def highlightClear(self):
-        """Clear the highlighted point"""
+    def highlightClear(self) -> None:
         self._highlightIndex = None
 
     def copy(self):
         return copy.deepcopy(self)
 
-    def __len__(self):
-        return len(self.points)
-
-    def __getitem__(self, key):
-        return self.points[key]
-
-    def __setitem__(self, key, value):
-        self.points[key] = value
+    def __scale_point(self, point: QPointF) -> QPointF:
+        return QPointF(point.x() * self.scale, point.y() * self.scale)
 
 
 class Canvas(QWidget):
     zoom_request_signal = pyqtSignal(int, QPoint)
-    scrollRequest = pyqtSignal(int, int)
-    newShape = pyqtSignal()
-    selectionChanged = pyqtSignal(list)
-    shapeMoved = pyqtSignal()
-    drawingPolygon = pyqtSignal(bool)
-    vertexSelected = pyqtSignal(bool)
-    mouseMoved = pyqtSignal(QPointF)
+    scroll_request_signal = pyqtSignal(int, int)
+    new_shape_signal = pyqtSignal()
+    selection_changed_signal = pyqtSignal(list)
+    shape_moved_signal = pyqtSignal()
+    drawing_polygon_signal = pyqtSignal(bool)
+    vertex_selected_signal = pyqtSignal(bool)
+    mouse_moved_signal = pyqtSignal(QPointF)
 
     CREATE, EDIT = 0, 1
 
@@ -375,7 +361,7 @@ class Canvas(QWidget):
         if self.drawing():
             if   (key == Qt.Key.Key_Escape) and self.current:
                 self.current = None
-                self.drawingPolygon.emit(False)
+                self.drawing_polygon_signal.emit(False)
                 self.update()
             elif (key == Qt.Key.Key_Return) and self.canCloseShape():
                 self.finalise()
@@ -401,7 +387,7 @@ class Canvas(QWidget):
                 index = self.shapes.index(self.selectedShapes[0])
                 if self.shapesBackups[-1][index].points != self.shapes[index].points:
                     self.storeShapes()
-                    self.shapeMoved.emit()
+                    self.shape_moved_signal.emit()
                 self.movingShape = False
 
     def leaveEvent(self, event: QEvent) -> None:
@@ -420,7 +406,7 @@ class Canvas(QWidget):
         except AttributeError:
             return
 
-        self.mouseMoved.emit(pos)
+        self.mouse_moved_signal.emit(pos)
 
         self.prevMovePoint = pos
         self.restoreCursor()
@@ -516,16 +502,14 @@ class Canvas(QWidget):
                 self.prevhShape = self.hShape = shape
                 self.prevhEdge = self.hEdge
                 self.hEdge = None
-                self.setToolTip(
-                    self.tr('Click & drag to move shape "%s"') % shape.label
-                )
+                self.setToolTip(self.tr('Click & drag to move shape "%s"') % shape.label)
                 self.setStatusTip(self.toolTip())
                 self.overrideCursor(CURSOR_GRAB)
                 self.update()
                 break
         else:  # Nothing found, clear highlights, reset state.
             self.unHighlight()
-        self.vertexSelected.emit(self.hVertex is not None)
+        self.vertex_selected_signal.emit(self.hVertex is not None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         pos = self.transformPos(event.localPos())
@@ -544,7 +528,7 @@ class Canvas(QWidget):
                     self.line.points = [pos, pos]
                     self.line.point_labels = [1, 1]
                     self.setHiding()
-                    self.drawingPolygon.emit(True)
+                    self.drawing_polygon_signal.emit(True)
                     self.update()
             elif self.editing():
                 if   (self.selectedEdge()) and \
@@ -581,12 +565,12 @@ class Canvas(QWidget):
                 if (self.hShape is not None) and \
                    (self.hShapeIsSelected) and \
                    (not self.movingShape):
-                    self.selectionChanged.emit([x for x in self.selectedShapes if x != self.hShape])
+                    self.selection_changed_signal.emit([x for x in self.selectedShapes if x != self.hShape])
         if self.movingShape and self.hShape:
             index = self.shapes.index(self.hShape)
             if self.shapesBackups[-1][index].points != self.shapes[index].points:
                 self.storeShapes()
-                self.shapeMoved.emit()
+                self.shape_moved_signal.emit()
             self.movingShape = False
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -649,8 +633,8 @@ class Canvas(QWidget):
         if Qt.KeyboardModifier.ControlModifier == int(mods):
             self.zoom_request_signal.emit(delta.y(), event.pos())
         else:
-            self.scrollRequest.emit(delta.x(), Qt.Orientation.Horizontal)
-            self.scrollRequest.emit(delta.y(), Qt.Orientation.Vertical)
+            self.scroll_request_signal.emit(delta.x(), Qt.Orientation.Horizontal)
+            self.scroll_request_signal.emit(delta.y(), Qt.Orientation.Vertical)
         event.accept()
 
     def fillDrawing(self):
@@ -785,12 +769,11 @@ class Canvas(QWidget):
 
     def selectShapes(self, shapes):
         self.setHiding()
-        self.selectionChanged.emit(shapes)
+        self.selection_changed_signal.emit(shapes)
         self.update()
 
     def selectShapePoint(self, point, multiple_selection_mode):
-        """Select the first shape created which contains this point."""
-        if self.selectedVertex():  # A vertex is marked for selection.
+        if self.selectedVertex():
             index, shape = self.hVertex, self.hShape
             shape.highlightVertex(index, shape.MOVE_VERTEX)
         else:
@@ -799,9 +782,9 @@ class Canvas(QWidget):
                     self.setHiding()
                     if shape not in self.selectedShapes:
                         if multiple_selection_mode:
-                            self.selectionChanged.emit(self.selectedShapes + [shape])
+                            self.selection_changed_signal.emit(self.selectedShapes + [shape])
                         else:
-                            self.selectionChanged.emit([shape])
+                            self.selection_changed_signal.emit([shape])
                         self.hShapeIsSelected = False
                     else:
                         self.hShapeIsSelected = True
@@ -866,7 +849,7 @@ class Canvas(QWidget):
     def deSelectShape(self):
         if self.selectedShapes:
             self.setHiding(False)
-            self.selectionChanged.emit([])
+            self.selection_changed_signal.emit([])
             self.hShapeIsSelected = False
             self.update()
 
@@ -914,7 +897,7 @@ class Canvas(QWidget):
         self.storeShapes()
         self.current = None
         self.setHiding(False)
-        self.newShape.emit()
+        self.new_shape_signal.emit()
         self.update()
 
     def closeEnough(self, p1, p2):
@@ -997,9 +980,9 @@ class Canvas(QWidget):
         assert self.shapes
         self.current = self.shapes.pop()
         self.current.setOpen()
-        self.current.restoreShapeRaw()
+        self.current.restore_shape_raw()
         self.line.points = [self.current[-1], self.current[0]]
-        self.drawingPolygon.emit(True)
+        self.drawing_polygon_signal.emit(True)
 
     def undoLastPoint(self):
         if not self.current or self.current.isClosed():
@@ -1009,7 +992,7 @@ class Canvas(QWidget):
             self.line[0] = self.current[-1]
         else:
             self.current = None
-            self.drawingPolygon.emit(False)
+            self.drawing_polygon_signal.emit(False)
         self.update()
 
     def loadPixmap(self, pixmap, clear_shapes=True):
@@ -1347,13 +1330,12 @@ class LabelListWidget(QListView):
         super(LabelListWidget, self).__init__()
         self._selectedItems = []
 
-        self.setWindowFlags(Qt.Window)
+        self.setWindowFlags(Qt.WindowType.Window)
         self.setModel(StandardItemModel())
         self.model().setItemPrototype(LabelListWidgetItem())
         self.setItemDelegate(HTMLDelegate())
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
-        self.setDefaultDropAction(Qt.MoveAction)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
 
         self.doubleClicked.connect(self.itemDoubleClickedEvent)
         self.selectionModel().selectionChanged.connect(self.itemSelectionChangedEvent)
@@ -1446,16 +1428,16 @@ class LabelDialog(QDialog):
         layout.addWidget(bb)
         self.label_list_widget = QListWidget()
         if self._fit_to_content['row']:
-            self.label_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.label_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         if self._fit_to_content['column']:
-            self.label_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.label_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._sort_labels = sort_labels
         if labels:
             self.label_list_widget.addItems(labels)
         if self._sort_labels:
             self.label_list_widget.sortItems()
         else:
-            self.label_list_widget.setDragDropMode(QAbstractItemView.InternalMove)
+            self.label_list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.label_list_widget.currentItemChanged.connect(self.labelSelected)
         self.label_list_widget.itemDoubleClicked.connect(self.labelDoubleClicked)
         self.label_list_widget.setFixedHeight(150)
@@ -1464,10 +1446,10 @@ class LabelDialog(QDialog):
         self.setLayout(layout)
         completer = QCompleter()
         if completion == 'startswith':
-            completer.setCompletionMode(QCompleter.InlineCompletion)
+            completer.setCompletionMode(QCompleter.CompletionMode.InlineCompletion)
         elif completion == 'contains':
-            completer.setCompletionMode(QCompleter.PopupCompletion)
-            completer.setFilterMode(Qt.MatchContains)
+            completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
         else:
             raise ValueError('Unsupported completion: {}'.format(completion))
         completer.setModel(self.label_list_widget.model())
@@ -1549,12 +1531,12 @@ class BrightnessContrastDialog(QDialog):
             title_label = QLabel(self.tr(title))
             title_label.setFixedWidth(75)
             layout.addWidget(title_label)
-            slider = QSlider(Qt.Horizontal)
+            slider = QSlider(Qt.Orientation.Horizontal)
             slider.setRange(0, 3 * self._base_value)
             slider.setValue(self._base_value)
             layout.addWidget(slider)
             value_label = QLabel(f'{slider.value() / self._base_value:.2f}')
-            value_label.setAlignment(Qt.AlignRight)
+            value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             layout.addWidget(value_label)
             slider.valueChanged.connect(self.onNewValue)
             slider.valueChanged.connect(lambda: value_label.setText(f'{slider.value() / self._base_value:.2f}'))
@@ -1589,16 +1571,7 @@ class BrightnessContrastDialog(QDialog):
 
 class MainWindow(QMainWindow):
 
-    def __init__(
-            self,
-            config=None,
-            output=None,
-            output_file=None,
-            output_dir=None):
-        if output is not None:
-            logger.warning('argument output is deprecated, use output_file instead')
-            if output_file is None:
-                output_file = output
+    def __init__(self, config=None) -> None:
 
         if config is None:
             config = get_config()
@@ -1651,9 +1624,9 @@ class MainWindow(QMainWindow):
         self.label_dock.setObjectName('Label List')
         self.label_dock.setFeatures(
             QDockWidget.DockWidgetFeatures() |
-            QDockWidget.DockWidgetClosable |
-            QDockWidget.DockWidgetFloatable |
-            QDockWidget.DockWidgetMovable)
+            QDockWidget.DockWidgetFeature.DockWidgetClosable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.label_dock.setWidget(self.label_list)
 
         self.quad_list = LabelListWidget()
@@ -1665,9 +1638,9 @@ class MainWindow(QMainWindow):
         self.quad_dock.setObjectName('Labels')
         self.quad_dock.setFeatures(
             QDockWidget.DockWidgetFeatures() |
-            QDockWidget.DockWidgetClosable |
-            QDockWidget.DockWidgetFloatable |
-            QDockWidget.DockWidgetMovable)
+            QDockWidget.DockWidgetFeature.DockWidgetClosable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.quad_dock.setWidget(self.quad_list)
 
         self.file_search = QLineEdit()
@@ -1686,9 +1659,9 @@ class MainWindow(QMainWindow):
         self.file_dock.setObjectName('Files')
         self.file_dock.setFeatures(
             QDockWidget.DockWidgetFeatures() |
-            QDockWidget.DockWidgetClosable |
-            QDockWidget.DockWidgetFloatable |
-            QDockWidget.DockWidgetMovable)
+            QDockWidget.DockWidgetFeature.DockWidgetClosable |
+            QDockWidget.DockWidgetFeature.DockWidgetFloatable |
+            QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.file_dock.setWidget(file_list_widget)
 
         self.setAcceptDrops(True)
@@ -1699,25 +1672,25 @@ class MainWindow(QMainWindow):
             num_backups=self._config['canvas']['num_backups'],
             crosshair=self._config['canvas']['crosshair'])
         self.canvas.zoom_request_signal.connect(self.__zoom_request)
-        self.canvas.mouseMoved.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
+        self.canvas.mouse_moved_signal.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
 
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.canvas)
         scroll_area.setWidgetResizable(True)
         self.scroll_bars = {
-            Qt.Vertical: scroll_area.verticalScrollBar(),
-            Qt.Horizontal: scroll_area.horizontalScrollBar()}
-        self.canvas.scrollRequest.connect(self.__scroll_request)
-        self.canvas.newShape.connect(self.__new_shape)
-        self.canvas.shapeMoved.connect(self.__set_dirty)
-        self.canvas.selectionChanged.connect(self.__shape_selection_changed)
-        self.canvas.drawingPolygon.connect(self.__toggle_drawing_sensitive)
+            Qt.Orientation.Vertical: scroll_area.verticalScrollBar(),
+            Qt.Orientation.Horizontal: scroll_area.horizontalScrollBar()}
+        self.canvas.scroll_request_signal.connect(self.__scroll_request)
+        self.canvas.new_shape_signal.connect(self.__new_shape)
+        self.canvas.shape_moved_signal.connect(self.__set_dirty)
+        self.canvas.selection_changed_signal.connect(self.__shape_selection_changed)
+        self.canvas.drawing_polygon_signal.connect(self.__toggle_drawing_sensitive)
 
         self.setCentralWidget(scroll_area)
 
-        self.addDockWidget(Qt.RightDockWidgetArea, self.label_dock)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.quad_dock)
-        self.addDockWidget(Qt.RightDockWidgetArea, self.file_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.label_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.quad_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.file_dock)
 
         shortcuts = self._config['shortcuts']
 
@@ -2886,7 +2859,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', '-V', action='store_true', help='show version')
     parser.add_argument('--reset-config', action='store_true', help='reset qt config')
-    parser.add_argument('--output', '-O', '-o')
     default_config_file = os.path.join(os.path.expanduser('~'), '.labelQuadrc')
     parser.add_argument('--config', dest='config', default=default_config_file)
     parser.add_argument(
@@ -2929,7 +2901,6 @@ def main():
     config_from_args = args.__dict__
     config_from_args.pop('version')
     reset_config = config_from_args.pop('reset_config')
-    output = config_from_args.pop('output')
     config_file_or_yaml = config_from_args.pop('config')
     config = get_config(config_file_or_yaml, config_from_args)
 
@@ -2941,28 +2912,15 @@ def main():
         )
         sys.exit(1)
 
-    output_file = None
-    output_dir = None
-    if output is not None:
-        if output.endswith('.json'):
-            output_file = output
-        else:
-            output_dir = output
-
     translator = QTranslator()
     translator.load(
         QLocale.system().name(),
-        osp.dirname(osp.abspath(__file__)) + '/translate',
-    )
+        osp.dirname(osp.abspath(__file__)) + '/translate')
     app = QApplication(sys.argv)
     app.setApplicationName(__appname__)
     app.setWindowIcon(newIcon('icon'))
     app.installTranslator(translator)
-    win = MainWindow(
-        config=config,
-        output_file=output_file,
-        output_dir=output_dir,
-    )
+    win = MainWindow(config=config)
 
     if reset_config:
         logger.info('Resetting Qt config: %s' % win.settings.fileName())
