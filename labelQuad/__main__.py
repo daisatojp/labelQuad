@@ -300,7 +300,6 @@ class Canvas(QWidget):
         if self.double_click not in [None, 'close']:
             raise ValueError('Unexpected value for double_click event: {}'.format(self.double_click))
         self.num_backups = kwargs.pop('num_backups', 10)
-        self._crosshair = kwargs.pop('crosshair', {'polygon': False})
 
         super(Canvas, self).__init__(*args, **kwargs)
 
@@ -540,18 +539,6 @@ class Canvas(QWidget):
 
         p.scale(1 / self.scale, 1 / self.scale)
 
-        if (self._crosshair['polygon']) and \
-           (self.drawing()) and \
-           (self.prevMovePoint) and \
-           (not self.outOfPixmap(self.prevMovePoint)):
-            p.setPen(QColor(0, 0, 0))
-            p.drawLine(
-                0               , int(self.prevMovePoint.y() * self.scale),
-                self.width() - 1, int(self.prevMovePoint.y() * self.scale))
-            p.drawLine(
-                int(self.prevMovePoint.x() * self.scale), 0,
-                int(self.prevMovePoint.x() * self.scale), self.height() - 1)
-
         Shape.scale = self.scale
         for shape in self.shapes:
             if (shape.selected or not self._hideBackround) and self.isVisible(shape):
@@ -631,13 +618,11 @@ class Canvas(QWidget):
     def editing(self):
         return self.mode == self.EDIT
 
-    def setEditing(self, value=True):
+    def setEditing(self, value: bool = True) -> None:
         self.mode = self.EDIT if value else self.CREATE
         if self.mode == self.EDIT:
-            # CREATE -> EDIT
-            self.repaint()  # clear crosshair
+            self.repaint()
         else:
-            # EDIT -> CREATE
             self.unHighlight()
             self.deSelectShape()
 
@@ -769,10 +754,6 @@ class Canvas(QWidget):
         y = (ah - h) / (2 * s) if ah > h else 0
         return QPointF(x, y)
 
-    def outOfPixmap(self, p):
-        w, h = self.pixmap.width(), self.pixmap.height()
-        return not ((0 <= p.x() <= w - 1) and (0 <= p.y() <= h - 1))
-
     def finalise(self):
         assert self.current
         self.current.close()
@@ -786,58 +767,6 @@ class Canvas(QWidget):
 
     def closeEnough(self, p1, p2):
         return distance(p1 - p2) < (self.epsilon / self.scale)
-
-    def intersectionPoint(self, p1, p2):
-        # Cycle through each image edge in clockwise fashion,
-        # and find the one intersecting the current line segment.
-        # http://paulbourke.net/geometry/lineline2d/
-        size = self.pixmap.size()
-        points = [
-            (0, 0),
-            (size.width() - 1, 0),
-            (size.width() - 1, size.height() - 1),
-            (0, size.height() - 1),
-        ]
-        # x1, y1 should be in the pixmap, x2, y2 should be out of the pixmap
-        x1 = min(max(p1.x(), 0), size.width() - 1)
-        y1 = min(max(p1.y(), 0), size.height() - 1)
-        x2, y2 = p2.x(), p2.y()
-        d, i, (x, y) = min(self.intersectingEdges((x1, y1), (x2, y2), points))
-        x3, y3 = points[i]
-        x4, y4 = points[(i + 1) % 4]
-        if (x, y) == (x1, y1):
-            # Handle cases where previous point is on one of the edges.
-            if x3 == x4:
-                return QPointF(x3, min(max(0, y2), max(y3, y4)))
-            else:  # y3 == y4
-                return QPointF(min(max(0, x2), max(x3, x4)), y3)
-        return QPointF(x, y)
-
-    def intersectingEdges(self, point1, point2, points):
-        """Find intersecting edges.
-
-        For each edge formed by `points', yield the intersection
-        with the line segment `(x1,y1) - (x2,y2)`, if it exists.
-        Also return the distance of `(x2,y2)' to the middle of the
-        edge along with its index, so that the one closest can be chosen.
-        """
-        (x1, y1) = point1
-        (x2, y2) = point2
-        for i in range(4):
-            x3, y3 = points[i]
-            x4, y4 = points[(i + 1) % 4]
-            denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
-            nua = (x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)
-            nub = (x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)
-            if denom == 0:
-                continue
-            ua, ub = nua / denom, nub / denom
-            if 0 <= ua <= 1 and 0 <= ub <= 1:
-                x = x1 + ua * (x2 - x1)
-                y = y1 + ua * (y2 - y1)
-                m = QPointF((x3 + x4) / 2, (y3 + y4) / 2)
-                d = distance(m - QPointF(x2, y2))
-                yield d, i, (x, y)
 
     def sizeHint(self):
         return self.minimumSizeHint()
@@ -1555,8 +1484,7 @@ class MainWindow(QMainWindow):
         self.canvas = Canvas(
             epsilon=self._config['epsilon'],
             double_click=self._config['canvas']['double_click'],
-            num_backups=self._config['canvas']['num_backups'],
-            crosshair=self._config['canvas']['crosshair'])
+            num_backups=self._config['canvas']['num_backups'])
         self.canvas.zoom_request_signal.connect(self.__zoom_request)
         self.canvas.mouse_moved_signal.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
 
@@ -2503,11 +2431,6 @@ def get_default_config():
                 '  double_click: close',
                 '  # The max number of edits we can undo',
                 '  num_backups: 10',
-                '  # show crosshair',
-                '  crosshair:',
-                '    polygon: false',
-                '    line: false',
-                '    point: false',
                 '',
                 'shortcuts:',
                 '  close: Ctrl+W',
