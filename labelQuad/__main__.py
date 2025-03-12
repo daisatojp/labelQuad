@@ -478,9 +478,6 @@ class Canvas(QWidget):
                     self.drawing_polygon_signal.emit(True)
                     self.update()
             elif self.editing():
-                if (self.selectedVertex()) and \
-                   (event.modifiers() == (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ShiftModifier)):
-                    self.removeSelectedPoint()
                 group_mode = int(event.modifiers()) == Qt.KeyboardModifier.ControlModifier
                 self.selectShapePoint(pos, multiple_selection_mode=group_mode)
                 self.prevPoint = pos
@@ -631,17 +628,6 @@ class Canvas(QWidget):
 
     def selectedVertex(self):
         return self.highlighted_vertex is not None
-
-    def removeSelectedPoint(self):
-        shape = self.highlighted_shape_prev
-        index = self.highlighted_vertex_prev
-        if shape is None or index is None:
-            return
-        shape.removePoint(index)
-        shape.highlightClear()
-        self.highlighted_shape = shape
-        self.highlighted_vertex_prev = None
-        self.movingShape = True  # Save changes
 
     def end_copy_move(self) -> None:
         if (not (self.selected_shapes and self.selected_shapes_copy)) or \
