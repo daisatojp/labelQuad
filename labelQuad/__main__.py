@@ -20,6 +20,7 @@ import PIL.Image
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from PyQt5.QtWidgets import QDialogButtonBox as QDBB
 from PyQt5.QtWidgets import QMessageBox as QMB
 import imgviz
 from loguru import logger
@@ -1257,7 +1258,6 @@ class UniqueLabelQListWidget(EscapableQListWidget):
     def createItemFromLabel(self, label):
         if self.findItemByLabel(label):
             raise ValueError('Item for label "{}" already exists'.format(label))
-
         item = QListWidgetItem()
         item.setData(Qt.UserRole, label)
         return item
@@ -1269,26 +1269,26 @@ class UniqueLabelQListWidget(EscapableQListWidget):
         else:
             qlabel.setText(
                 '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-                    html.escape(label), *color
-                )
-            )
+                    html.escape(label), *color))
         qlabel.setAlignment(Qt.AlignBottom)
-
         item.setSizeHint(qlabel.sizeHint())
-
         self.setItemWidget(item, qlabel)
 
 
 class LabelQLineEdit(QLineEdit):
 
-    def setListWidget(self, list_widget):
+    def __init__(self, parent=None):
+        super(LabelQLineEdit, self).__init__(parent)
+        self.list_widget: Optional[QListWidget] = None
+
+    def setListWidget(self, list_widget: QListWidget) -> None:
         self.list_widget = list_widget
 
-    def keyPressEvent(self, e):
-        if e.key() in [Qt.Key_Up, Qt.Key_Down]:
-            self.list_widget.keyPressEvent(e)
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
+            self.list_widget.keyPressEvent(event)
         else:
-            super(LabelQLineEdit, self).keyPressEvent(e)
+            super(LabelQLineEdit, self).keyPressEvent(event)
 
 
 class HTMLDelegate(QStyledItemDelegate):
@@ -1480,6 +1480,7 @@ class LabelDialog(QDialog):
         self._fit_to_content = fit_to_content
 
         super(LabelDialog, self).__init__(parent)
+
         self.edit = LabelQLineEdit()
         self.edit.setPlaceholderText(text)
         self.edit.setValidator(labelValidator())
@@ -1487,56 +1488,47 @@ class LabelDialog(QDialog):
         layout = QVBoxLayout()
         if show_text_field:
             layout.addWidget(self.edit)
-        # buttons
-        self.buttonBox = bb = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
-            Qt.Horizontal,
-            self,
-        )
-        bb.button(bb.Ok).setIcon(newIcon('done'))
-        bb.button(bb.Cancel).setIcon(newIcon('undo'))
+        bb = QDBB(QDBB.StandardButton.Ok | QDBB.StandardButton.Cancel, Qt.Orientation.Horizontal, self)
+        bb.button(QDBB.StandardButton.Ok).setIcon(newIcon('done'))
+        bb.button(QDBB.StandardButton.Cancel).setIcon(newIcon('undo'))
         bb.accepted.connect(self.validate)
         bb.rejected.connect(self.reject)
         layout.addWidget(bb)
-        # label_list
-        self.labelList = QListWidget()
+        self.label_list_widget = QListWidget()
         if self._fit_to_content['row']:
-            self.labelList.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.label_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         if self._fit_to_content['column']:
-            self.labelList.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.label_list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._sort_labels = sort_labels
         if labels:
-            self.labelList.addItems(labels)
+            self.label_list_widget.addItems(labels)
         if self._sort_labels:
-            self.labelList.sortItems()
+            self.label_list_widget.sortItems()
         else:
-            self.labelList.setDragDropMode(QAbstractItemView.InternalMove)
-        self.labelList.currentItemChanged.connect(self.labelSelected)
-        self.labelList.itemDoubleClicked.connect(self.labelDoubleClicked)
-        self.labelList.setFixedHeight(150)
-        self.edit.setListWidget(self.labelList)
-        layout.addWidget(self.labelList)
+            self.label_list_widget.setDragDropMode(QAbstractItemView.InternalMove)
+        self.label_list_widget.currentItemChanged.connect(self.labelSelected)
+        self.label_list_widget.itemDoubleClicked.connect(self.labelDoubleClicked)
+        self.label_list_widget.setFixedHeight(150)
+        self.edit.setListWidget(self.label_list_widget)
+        layout.addWidget(self.label_list_widget)
         self.setLayout(layout)
-        # completion
         completer = QCompleter()
         if completion == 'startswith':
             completer.setCompletionMode(QCompleter.InlineCompletion)
-            # Default settings.
-            # completer.setFilterMode(QtCore.Qt.MatchStartsWith)
         elif completion == 'contains':
             completer.setCompletionMode(QCompleter.PopupCompletion)
             completer.setFilterMode(Qt.MatchContains)
         else:
             raise ValueError('Unsupported completion: {}'.format(completion))
-        completer.setModel(self.labelList.model())
+        completer.setModel(self.label_list_widget.model())
         self.edit.setCompleter(completer)
 
     def addLabelHistory(self, label):
-        if self.labelList.findItems(label, Qt.MatchExactly):
+        if self.label_list_widget.findItems(label, Qt.MatchFlag.MatchExactly):
             return
-        self.labelList.addItem(label)
+        self.label_list_widget.addItem(label)
         if self._sort_labels:
-            self.labelList.sortItems()
+            self.label_list_widget.sortItems()
 
     def labelSelected(self, item):
         self.edit.setText(item.text())
@@ -1567,21 +1559,21 @@ class LabelDialog(QDialog):
 
     def popUp(self, text=None, move=True):
         if self._fit_to_content['row']:
-            self.labelList.setMinimumHeight(
-                self.labelList.sizeHintForRow(0) * self.labelList.count() + 2)
+            self.label_list_widget.setMinimumHeight(
+                self.label_list_widget.sizeHintForRow(0) * self.label_list_widget.count() + 2)
         if self._fit_to_content['column']:
-            self.labelList.setMinimumWidth(self.labelList.sizeHintForColumn(0) + 2)
+            self.label_list_widget.setMinimumWidth(self.label_list_widget.sizeHintForColumn(0) + 2)
         # if text is None, the previous label in self.edit is kept
         if text is None:
             text = self.edit.text()
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
-        items = self.labelList.findItems(text, Qt.MatchFixedString)
+        items = self.label_list_widget.findItems(text, Qt.MatchFixedString)
         if items:
             if len(items) != 1:
                 logger.warning('Label list has duplicate "{}"'.format(text))
-            self.labelList.setCurrentItem(items[0])
-            row = self.labelList.row(items[0])
+            self.label_list_widget.setCurrentItem(items[0])
+            row = self.label_list_widget.row(items[0])
             self.edit.completer().setCurrentRow(row)
         self.edit.setFocus(Qt.PopupFocusReason)
         if move:
