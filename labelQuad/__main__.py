@@ -114,15 +114,12 @@ class Shape(object):
             self,
             label=None,
             line_color=None,
-            shape_type=None,
             flags=None):
         self.label = label
         self.points = []
         self.point_labels = []
-        self.shape_type = shape_type
         self._shape_raw = None
         self._points_raw = []
-        self._shape_type_raw = None
         self.fill = False
         self.selected = False
         self.flags = flags
@@ -143,29 +140,16 @@ class Shape(object):
     def _scale_point(self, point: QPointF) -> QPointF:
         return QPointF(point.x() * self.scale, point.y() * self.scale)
 
-    def setShapeRefined(self, shape_type, points, point_labels):
-        self._shape_raw = (self.shape_type, self.points, self.point_labels)
-        self.shape_type = shape_type
+    def setShapeRefined(self, points, point_labels):
+        self._shape_raw = (self.points, self.point_labels)
         self.points = points
         self.point_labels = point_labels
 
     def restoreShapeRaw(self):
         if self._shape_raw is None:
             return
-        self.shape_type, self.points, self.point_labels = self._shape_raw
+        self.points, self.point_labels = self._shape_raw
         self._shape_raw = None
-
-    @property
-    def shape_type(self):
-        return self._shape_type
-
-    @shape_type.setter
-    def shape_type(self, value):
-        if value is None:
-            value = 'polygon'
-        if value not in ['polygon', 'line', 'points']:
-            raise ValueError('Unexpected shape_type: {}'.format(value))
-        self._shape_type = value
 
     def close(self):
         self._closed = True
@@ -176,9 +160,6 @@ class Shape(object):
         else:
             self.points.append(point)
             self.point_labels.append(label)
-
-    def canAddPoint(self):
-        return self.shape_type in ['polygon']
 
     def popPoint(self):
         if self.points:
@@ -192,14 +173,9 @@ class Shape(object):
         self.point_labels.insert(i, label)
 
     def removePoint(self, i):
-        if not self.canAddPoint():
-            logger.warning('Cannot remove point from: shape_type=%r', self.shape_type)
+        if len(self.points) <= 3:
+            logger.warning('Cannot remove point from: len(points)=%d', len(self.points))
             return
-
-        if self.shape_type == 'polygon' and len(self.points) <= 3:
-            logger.warning('Cannot remove point from: shape_type=%r, len(points)=%d', self.shape_type, len(self.points))
-            return
-
         self.points.pop(i)
         self.point_labels.pop(i)
 
@@ -224,20 +200,12 @@ class Shape(object):
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
 
-            if self.shape_type == 'points':
-                assert len(self.points) == len(self.point_labels)
-                for i, point_label in enumerate(self.point_labels):
-                    if point_label == 1:
-                        self.drawVertex(vrtx_path, i)
-                    else:
-                        self.drawVertex(negative_vrtx_path, i)
-            else:
-                line_path.moveTo(self._scale_point(self.points[0]))
-                for i, p in enumerate(self.points):
-                    line_path.lineTo(self._scale_point(p))
-                    self.drawVertex(vrtx_path, i)
-                if self.isClosed():
-                    line_path.lineTo(self._scale_point(self.points[0]))
+            line_path.moveTo(self._scale_point(self.points[0]))
+            for i, p in enumerate(self.points):
+                line_path.lineTo(self._scale_point(p))
+                self.drawVertex(vrtx_path, i)
+            if self.isClosed():
+                line_path.lineTo(self._scale_point(self.points[0]))
 
             painter.drawPath(line_path)
             if vrtx_path.length() > 0:
@@ -499,10 +467,7 @@ class Canvas(QWidget):
         self.prevMovePoint = pos
         self.restoreCursor()
 
-        # Polygon drawing.
         if self.drawing():
-            self.line.shape_type = 'polygon'
-
             self.overrideCursor(CURSOR_DRAW)
             if not self.current:
                 self.repaint()  # draw crosshair
@@ -581,7 +546,7 @@ class Canvas(QWidget):
                 self.setStatusTip(self.toolTip())
                 self.update()
                 break
-            elif index_edge is not None and shape.canAddPoint():
+            elif index_edge is not None:
                 if self.selectedVertex():
                     self.hShape.highlightClear()
                 self.prevhVertex = self.hVertex
@@ -650,7 +615,7 @@ class Canvas(QWidget):
                         self.finalise()
                 elif not self.outOfPixmap(pos):
                     # Create new shape.
-                    self.current = Shape(shape_type='polygon')
+                    self.current = Shape()
                     self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
                     self.line.points = [pos, pos]
                     self.line.point_labels = [1, 1]
@@ -1181,7 +1146,6 @@ class LabelFile(object):
         shape_keys = [
             'label',
             'points',
-            'shape_type',
             'flags']
         try:
             with open(filename, 'r') as f:
@@ -1204,7 +1168,6 @@ class LabelFile(object):
                 dict(
                     label=s['label'],
                     points=s['points'],
-                    shape_type=s.get('shape_type', 'polygon'),
                     flags=s.get('flags', {}),
                     other_data={k: v for k, v in s.items() if k not in shape_keys},
                 )
@@ -2107,7 +2070,7 @@ class MainWindow(QMainWindow):
             quads = []
             for shape in j['shapes']:
                 label = shape['label']
-                quad = Shape(label=label, shape_type='polygon')
+                quad = Shape(label=label)
                 quad.addPoint(QPointF(shape['p1x'], shape['p1y']))
                 quad.addPoint(QPointF(shape['p2x'], shape['p2y']))
                 quad.addPoint(QPointF(shape['p3x'], shape['p3y']))
