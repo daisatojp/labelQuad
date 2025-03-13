@@ -1149,7 +1149,7 @@ class LabelDialog(QDialog):
         self.edit.setText(item.text())
 
     def __item_double_clicked(self, item: QListWidgetItem) -> None:
-        self.validate()
+        self.__validate()
 
     def __post_process(self) -> None:
         text = self.edit.text()
@@ -1341,7 +1341,7 @@ class MainWindow(QMainWindow):
             double_click=self._config['canvas']['double_click'],
             num_backups=self._config['canvas']['num_backups'])
         self.canvas.zoom_request_signal.connect(self.__zoom_request)
-        self.canvas.mouse_moved_signal.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x()}, y={pos.y()}'))
+        self.canvas.mouse_moved_signal.connect(lambda pos: self.__status(f'Mouse is at: x={pos.x():.2f}, y={pos.y():.2f}'))
 
         scroll_area = QScrollArea()
         scroll_area.setWidget(self.canvas)
