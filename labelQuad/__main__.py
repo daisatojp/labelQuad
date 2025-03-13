@@ -1076,14 +1076,14 @@ class LabelDialog(QDialog):
         self.edit = LabelQLineEdit()
         self.edit.setPlaceholderText(text)
         self.edit.setValidator(labelValidator())
-        self.edit.editingFinished.connect(self.postProcess)
+        self.edit.editingFinished.connect(self.__post_process)
         layout = QVBoxLayout()
         if show_text_field:
             layout.addWidget(self.edit)
         bb = QDBB(QDBB.StandardButton.Ok | QDBB.StandardButton.Cancel, Qt.Orientation.Horizontal, self)
         bb.button(QDBB.StandardButton.Ok).setIcon(newIcon('done'))
         bb.button(QDBB.StandardButton.Cancel).setIcon(newIcon('undo'))
-        bb.accepted.connect(self.validate)
+        bb.accepted.connect(self.__validate)
         bb.rejected.connect(self.reject)
         layout.addWidget(bb)
         self.label_list_widget = QListWidget()
@@ -1098,8 +1098,8 @@ class LabelDialog(QDialog):
             self.label_list_widget.sortItems()
         else:
             self.label_list_widget.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.label_list_widget.currentItemChanged.connect(self.labelSelected)
-        self.label_list_widget.itemDoubleClicked.connect(self.labelDoubleClicked)
+        self.label_list_widget.currentItemChanged.connect(self.__current_item_changed)
+        self.label_list_widget.itemDoubleClicked.connect(self.__item_double_clicked)
         self.label_list_widget.setFixedHeight(150)
         self.edit.setListWidget(self.label_list_widget)
         layout.addWidget(self.label_list_widget)
@@ -1115,52 +1115,17 @@ class LabelDialog(QDialog):
         completer.setModel(self.label_list_widget.model())
         self.edit.setCompleter(completer)
 
-    def addLabelHistory(self, label):
-        if self.label_list_widget.findItems(label, Qt.MatchFlag.MatchExactly):
-            return
-        self.label_list_widget.addItem(label)
-        if self._sort_labels:
-            self.label_list_widget.sortItems()
-
-    def labelSelected(self, item):
-        self.edit.setText(item.text())
-
-    def validate(self):
-        if not self.edit.isEnabled():
-            self.accept()
-            return
-
-        text = self.edit.text()
-        if hasattr(text, 'strip'):
-            text = text.strip()
-        else:
-            text = text.trimmed()
-        if text:
-            self.accept()
-
-    def labelDoubleClicked(self, item):
-        self.validate()
-
-    def postProcess(self):
-        text = self.edit.text()
-        if hasattr(text, 'strip'):
-            text = text.strip()
-        else:
-            text = text.trimmed()
-        self.edit.setText(text)
-
-    def popUp(self, text=None, move=True):
+    def popup(self, text: str = Optional[None]) -> Optional[str]:
         if self._fit_to_content['row']:
             self.label_list_widget.setMinimumHeight(
                 self.label_list_widget.sizeHintForRow(0) * self.label_list_widget.count() + 2)
         if self._fit_to_content['column']:
             self.label_list_widget.setMinimumWidth(self.label_list_widget.sizeHintForColumn(0) + 2)
-        # if text is None, the previous label in self.edit is kept
         if text is None:
             text = self.edit.text()
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
-        items = self.label_list_widget.findItems(text, Qt.MatchFixedString)
+        items = self.label_list_widget.findItems(text, Qt.MatchFlag.MatchFixedString)
         if items:
             if len(items) != 1:
                 logger.warning('Label list has duplicate "{}"'.format(text))
@@ -1168,12 +1133,44 @@ class LabelDialog(QDialog):
             row = self.label_list_widget.row(items[0])
             self.edit.completer().setCurrentRow(row)
         self.edit.setFocus(Qt.FocusReason.PopupFocusReason)
-        if move:
-            self.move(QCursor.pos())
+        self.move(QCursor.pos())
         if self.exec_():
             return self.edit.text()
         else:
             return None
+
+    def add_label_history(self, label: str) -> None:
+        if self.label_list_widget.findItems(label, Qt.MatchFlag.MatchExactly):
+            return
+        self.label_list_widget.addItem(label)
+        if self._sort_labels:
+            self.label_list_widget.sortItems()
+
+    def __current_item_changed(self, item: QListWidgetItem) -> None:
+        self.edit.setText(item.text())
+
+    def __item_double_clicked(self, item: QListWidgetItem) -> None:
+        self.validate()
+
+    def __post_process(self) -> None:
+        text = self.edit.text()
+        if hasattr(text, 'strip'):
+            text = text.strip()
+        else:
+            text = text.trimmed()
+        self.edit.setText(text)
+
+    def __validate(self):
+        if not self.edit.isEnabled():
+            self.accept()
+            return
+        text = self.edit.text()
+        if hasattr(text, 'strip'):
+            text = text.strip()
+        else:
+            text = text.trimmed()
+        if text:
+            self.accept()
 
 
 class BrightnessContrastDialog(QDialog):
@@ -1771,7 +1768,7 @@ class MainWindow(QMainWindow):
             return
         item = items[0]
         quad: Shape = items[0].shape()
-        text, _ = self.label_dialog.popUp(text=quad.label)
+        text = self.label_dialog.popup(text=quad.label)
         if text is None:
             return
         self.canvas.storeShapes()
@@ -1823,7 +1820,7 @@ class MainWindow(QMainWindow):
             self.label_list.addItem(item)
             rgb = self.__get_rgb_by_label(quad.label)
             self.label_list.setItemLabel(item, quad.label, rgb)
-        self.label_dialog.addLabelHistory(quad.label)
+        self.label_dialog.add_label_history(quad.label)
         for action in self.actions_on_shapes_present:
             action.setEnabled(True)
         self._update_shape_color(quad)
@@ -1901,7 +1898,7 @@ class MainWindow(QMainWindow):
             text = items[0].data(Qt.ItemDataRole.UserRole)
         if self._config['display_label_popup'] or not text:
             previous_text = self.label_dialog.edit.text()
-            text = self.label_dialog.popUp(text)
+            text = self.label_dialog.popup(text)
             if not text:
                 self.label_dialog.edit.setText(previous_text)
         if text:
