@@ -935,33 +935,22 @@ class LabelFile(object):
             imageWidth = img_arr.shape[1]
         return imageHeight, imageWidth
 
-    def save(
-            self,
-            filename,
-            shapes,
-            imagePath,
-            imageHeight,
-            imageWidth,
-            imageData=None,
-            otherData=None):
-        if imageData is not None:
-            imageData = base64.b64encode(imageData).decode('utf-8')
-            imageHeight, imageWidth = self._check_image_height_and_width(
-                imageData, imageHeight, imageWidth)
-        if otherData is None:
-            otherData = {}
-        data = dict(
-            version=__version__,
-            shapes=shapes,
-            imagePath=imagePath,
-            imageHeight=imageHeight,
-            imageWidth=imageWidth)
-        for key, value in otherData.items():
-            assert key not in data
-            data[key] = value
+    def save(self,
+             filename,
+             shapes,
+             image_path: str,
+             image_height: int,
+             image_width: int
+             ) -> None:
         try:
             with open(filename, 'w') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+                json.dump({
+                    'version': __version__,
+                    'path': image_path,
+                    'width': image_width,
+                    'height': image_height,
+                    'shapes': shapes
+                }, f, ensure_ascii=False, indent=2)
             self.filename = filename
         except Exception as e:
             raise LabelFileError(e)
@@ -1774,13 +1763,12 @@ class MainWindow(QMainWindow):
             if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
                 os.makedirs(osp.dirname(annot_path))
             lf = LabelFile()
-            lf.save(
-                filename=annot_path,
-                shapes=[format_shape(item.shape()) for item in self.quad_list],
-                imagePath=image_path,
-                imageHeight=self.image.height(),
-                imageWidth=self.image.width())
-            items = self.file_list.findItems(image_path, Qt.MatchExactly)
+            lf.save(filename=annot_path,
+                    shapes=[format_shape(item.shape()) for item in self.quad_list],
+                    image_path=image_path,
+                    image_height=self.image.height(),
+                    image_width=self.image.width())
+            items = self.file_list.findItems(image_path, Qt.MatchFlag.MatchExactly)
             if len(items) == 1:
                 items[0].setCheckState(Qt.CheckState.Checked)
             self.__set_clean()
