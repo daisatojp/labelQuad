@@ -836,63 +836,6 @@ class Canvas(QWidget):
         shape.moveVertexBy(index, pos - point)
 
 
-class LabelFileError(Exception):
-    pass
-
-
-class LabelFile(object):
-    suffix = '.json'
-
-    def __init__(self, filename=None):
-        self.shapes = []
-        self.imagePath = None
-        self.imageData = None
-        if filename is not None:
-            self.load(filename)
-        self.filename = filename
-
-    @staticmethod
-    def load_image_file(filename):
-        try:
-            image_pil = PIL.Image.open(filename)
-        except IOError:
-            logger.error('Failed opening image file: {}'.format(filename))
-            return
-
-        # apply orientation to image according to exif
-        image_pil = apply_exif_orientation(image_pil)
-
-        with io.BytesIO() as f:
-            ext = osp.splitext(filename)[1].lower()
-            if ext in ['.jpg', '.jpeg']:
-                format = 'JPEG'
-            else:
-                format = 'PNG'
-            image_pil.save(f, format=format)
-            f.seek(0)
-            return f.read()
-
-    def save(self,
-             filename,
-             shapes,
-             image_path: str,
-             image_height: int,
-             image_width: int
-             ) -> None:
-        try:
-            with open(filename, 'w') as f:
-                json.dump({
-                    'version': __version__,
-                    'path': image_path,
-                    'width': image_width,
-                    'height': image_height,
-                    'shapes': shapes
-                }, f, ensure_ascii=False, indent=2)
-            self.filename = filename
-        except Exception as e:
-            raise LabelFileError(e)
-
-
 class EscapableQListWidget(QListWidget):
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -1611,13 +1554,13 @@ class MainWindow(QMainWindow):
                 self.tr(f'Error opening file'),
                 self.tr(f'No such file: <b>{image_path}</b>'))
         self.__status(self.tr(f'Loading {image_path}...'))
-        image_data = LabelFile.load_image_file(image_path)
+        image_data = load_image_file(image_path)
         image = QImage.fromData(image_data)
         if image.isNull():
             self.__error_message(
                 self.tr('Error opening file'),
                 self.tr(f'<p>Make sure <i>{image_path}</i> is a valid image file.<br/>'))
-            self.__status(self.tr('Error reading %s') % image_path)
+            self.__status(self.tr(f'Error reading {image_path}'))
         self.image = image
         self.image_path = image_path
         self.image_data = image_data
@@ -1691,22 +1634,21 @@ class MainWindow(QMainWindow):
                 p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
                 p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
                 p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
-        try:
-            image_path = osp.relpath(annot_path, osp.dirname(image_path))
-            if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
-                os.makedirs(osp.dirname(annot_path))
-            lf = LabelFile()
-            lf.save(filename=annot_path,
-                    shapes=[format_shape(item.shape()) for item in self.quad_list],
-                    image_path=image_path,
-                    image_height=self.image.height(),
-                    image_width=self.image.width())
-            items = self.file_list.findItems(image_path, Qt.MatchFlag.MatchExactly)
-            if len(items) == 1:
-                items[0].setCheckState(Qt.CheckState.Checked)
-            self.__set_clean()
-        except LabelFileError as e:
-            self.__error_message(self.tr('Error saving label data'), self.tr(f'<b>{e}</b>'))
+        image_path = osp.relpath(annot_path, osp.dirname(image_path))
+        if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
+            os.makedirs(osp.dirname(annot_path))
+        with open(annot_path, 'w') as f:
+            json.dump({
+                'version': __version__,
+                'path': image_path,
+                'width': self.image.width(),
+                'height': self.image.height(),
+                'shapes': [format_shape(item.shape()) for item in self.quad_list]
+            }, f, ensure_ascii=False, indent=2)
+        items = self.file_list.findItems(image_path, Qt.MatchFlag.MatchExactly)
+        if len(items) == 1:
+            items[0].setCheckState(Qt.CheckState.Checked)
+        self.__set_clean()
 
     def __set_dirty(self) -> None:
         self.action_undo.setEnabled(self.canvas.isShapeRestorable)
@@ -2451,6 +2393,19 @@ def newIcon(icon):
     return QIcon(QPixmap(path))
 
 
+def load_image_file(filename: str) -> bytes:
+    image_pil = PIL.Image.open(filename)
+    with io.BytesIO() as f:
+        ext = osp.splitext(filename)[1].lower()
+        if ext in ['.jpg', '.jpeg']:
+            format = 'JPEG'
+        else:
+            format = 'PNG'
+        image_pil.save(f, format=format)
+        f.seek(0)
+        return f.read()
+
+
 def addActions(widget, actions):
     for action in actions:
         if action is None:
@@ -2468,47 +2423,6 @@ def fmtShortcut(text):
 
 def labelValidator():
     return QRegExpValidator(QRegExp(r'^[^ \t].+'), None)
-
-
-def apply_exif_orientation(image):
-    try:
-        exif = image._getexif()
-    except AttributeError:
-        exif = None
-
-    if exif is None:
-        return image
-
-    exif = {PIL.ExifTags.TAGS[k]: v for k, v in exif.items() if k in PIL.ExifTags.TAGS}
-
-    orientation = exif.get('Orientation', None)
-
-    if orientation == 1:
-        # do nothing
-        return image
-    elif orientation == 2:
-        # left-to-right mirror
-        return PIL.ImageOps.mirror(image)
-    elif orientation == 3:
-        # rotate 180
-        return image.transpose(PIL.Image.ROTATE_180)
-    elif orientation == 4:
-        # top-to-bottom mirror
-        return PIL.ImageOps.flip(image)
-    elif orientation == 5:
-        # top-to-left mirror
-        return PIL.ImageOps.mirror(image.transpose(PIL.Image.ROTATE_270))
-    elif orientation == 6:
-        # rotate 270
-        return image.transpose(PIL.Image.ROTATE_270)
-    elif orientation == 7:
-        # top-to-right mirror
-        return PIL.ImageOps.mirror(image.transpose(PIL.Image.ROTATE_90))
-    elif orientation == 8:
-        # rotate 90
-        return image.transpose(PIL.Image.ROTATE_90)
-    else:
-        return image
 
 
 def img_qt_to_arr(img_qt):
