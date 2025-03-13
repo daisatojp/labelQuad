@@ -18,6 +18,7 @@ import re
 import shutil
 from typing import Optional
 import PIL.Image
+import PIL.ImageEnhance
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
@@ -1182,7 +1183,7 @@ class BrightnessContrastDialog(QDialog):
             value_label = QLabel(f'{slider.value() / self._base_value:.2f}')
             value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             layout.addWidget(value_label)
-            slider.valueChanged.connect(self.onNewValue)
+            slider.valueChanged.connect(self.value_changed)
             slider.valueChanged.connect(lambda: value_label.setText(f'{slider.value() / self._base_value:.2f}'))
             layouts[title] = layout
             sliders[title] = slider
@@ -1201,7 +1202,7 @@ class BrightnessContrastDialog(QDialog):
         self.img = img
         self.callback = callback
 
-    def onNewValue(self, _):
+    def value_changed(self, _: Optional[int]) -> None:
         brightness = self.slider_brightness.value() / self._base_value
         contrast = self.slider_contrast.value() / self._base_value
         img = self.img
@@ -1209,7 +1210,7 @@ class BrightnessContrastDialog(QDialog):
             img = PIL.ImageEnhance.Brightness(img).enhance(brightness)
         if contrast != 1:
             img = PIL.ImageEnhance.Contrast(img).enhance(contrast)
-        qimage = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format_RGB888)
+        qimage = QImage(img.tobytes(), img.width, img.height, img.width * 3, QImage.Format.Format_RGB888)
         self.callback(qimage)
 
 
@@ -1611,8 +1612,8 @@ class MainWindow(QMainWindow):
         if contrast is not None:
             dialog.slider_contrast.setValue(contrast)
         self.brightness_contrast_values[self.image_path] = (brightness, contrast)
-        if brightness is not None or contrast is not None:
-            dialog.onNewValue(None)
+        if (brightness is not None) or (contrast is not None):
+            dialog.value_changed(None)
 
         self.__paint_canvas()
         self.__add_recent_file(self.image_path)
