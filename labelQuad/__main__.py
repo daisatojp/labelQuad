@@ -1,5 +1,4 @@
 import argparse
-import base64
 import codecs
 import copy
 from functools import partial
@@ -10,6 +9,7 @@ import math
 import os
 import os.path as osp
 import sys
+import PIL.ImageFile
 from loguru import logger
 import yaml
 import io
@@ -2354,36 +2354,11 @@ def get_config(config_file_or_yaml=None, config_from_args=None):
     return config
 
 
-def img_data_to_pil(img_data):
+def img_data_to_pil(img_data) -> PIL.ImageFile:
     f = io.BytesIO()
     f.write(img_data)
     img_pil = PIL.Image.open(f)
     return img_pil
-
-
-def img_data_to_arr(img_data):
-    img_pil = img_data_to_pil(img_data)
-    img_arr = np.array(img_pil)
-    return img_arr
-
-
-def img_pil_to_data(img_pil):
-    f = io.BytesIO()
-    img_pil.save(f, format='PNG')
-    img_data = f.getvalue()
-    return img_data
-
-
-def img_b64_to_arr(img_b64):
-    img_data = base64.b64decode(img_b64)
-    img_arr = img_data_to_arr(img_data)
-    return img_arr
-
-
-def img_arr_to_data(img_arr):
-    img_pil = PIL.Image.fromarray(img_arr)
-    img_data = img_pil_to_data(img_pil)
-    return img_data
 
 
 def newIcon(icon):
