@@ -330,6 +330,9 @@ class Canvas(QWidget):
     def enterEvent(self, event: QEnterEvent) -> None:
         self.overrideCursor(self._cursor)
 
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        self.restoreCursor()
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
         modifiers = event.modifiers()
         key = event.key()
@@ -344,13 +347,13 @@ class Canvas(QWidget):
                 self.snapping = False
         elif self.editing():
             if   key == Qt.Key.Key_Up:
-                self.moveByKeyboard(QPointF(0.0, -MOVE_SPEED))
+                self.__move_by_keyboard(QPointF(0.0, -MOVE_SPEED))
             elif key == Qt.Key.Key_Down:
-                self.moveByKeyboard(QPointF(0.0, MOVE_SPEED))
+                self.__move_by_keyboard(QPointF(0.0, MOVE_SPEED))
             elif key == Qt.Key.Key_Left:
-                self.moveByKeyboard(QPointF(-MOVE_SPEED, 0.0))
+                self.__move_by_keyboard(QPointF(-MOVE_SPEED, 0.0))
             elif key == Qt.Key.Key_Right:
-                self.moveByKeyboard(QPointF(MOVE_SPEED, 0.0))
+                self.__move_by_keyboard(QPointF(MOVE_SPEED, 0.0))
 
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
         modifiers = event.modifiers()
@@ -579,26 +582,21 @@ class Canvas(QWidget):
             self.shapes_backup = self.shapes_backup[-self.num_backups - 1 :]
         self.shapes_backup.append(shapesBackup)
 
-    @property
-    def isShapeRestorable(self):
+    def is_shape_restorable(self) -> bool:
         if len(self.shapes_backup) < 2:
             return False
         return True
 
-    def restoreShape(self):
-        if not self.isShapeRestorable:
+    def restore_shape(self) -> None:
+        if not self.is_shape_restorable():
             return
         self.shapes_backup.pop()
-
         shapesBackup = self.shapes_backup.pop()
         self.shapes = shapesBackup
         self.selected_shapes = []
         for shape in self.shapes:
             shape.selected = False
         self.update()
-
-    def focusOutEvent(self, ev):
-        self.restoreCursor()
 
     def isVisible(self, shape):
         return self.visible.get(shape, True)
@@ -662,27 +660,6 @@ class Canvas(QWidget):
         self.selection_changed_signal.emit(shapes)
         self.update()
 
-    def calculateOffsets(self, point):
-        left = self.pixmap.width() - 1
-        right = 0
-        top = self.pixmap.height() - 1
-        bottom = 0
-        for s in self.selected_shapes:
-            rect = s.boundingRect()
-            if rect.left() < left:
-                left = rect.left()
-            if rect.right() > right:
-                right = rect.right()
-            if rect.top() < top:
-                top = rect.top()
-            if rect.bottom() > bottom:
-                bottom = rect.bottom()
-        x1 = left - point.x()
-        y1 = top - point.y()
-        x2 = right - point.x()
-        y2 = bottom - point.y()
-        self.offsets = QPointF(x1, y1), QPointF(x2, y2)
-
     def deSelectShape(self):
         if self.selected_shapes:
             self.setHiding(False)
@@ -732,20 +709,14 @@ class Canvas(QWidget):
             return self.scale * self.pixmap.size()
         return super(Canvas, self).minimumSizeHint()
 
-    def moveByKeyboard(self, offset):
-        if self.selected_shapes:
-            self.__move_shapes(self.selected_shapes, self.prevPoint + offset)
-            self.repaint()
-            self.movingShape = True
-
-    def setLastLabel(self, text):
+    def set_last_label(self, text: str) -> None:
         assert text
         self.shapes[-1].label = text
         self.shapes_backup.pop()
         self.storeShapes()
         return self.shapes[-1]
 
-    def undoLastLine(self):
+    def undo_last_line(self) -> None:
         assert self.shapes
         self.current = self.shapes.pop()
         self.current.setOpen()
@@ -753,7 +724,7 @@ class Canvas(QWidget):
         self.line.points = [self.current[-1], self.current[0]]
         self.drawing_polygon_signal.emit(True)
 
-    def undoLastPoint(self):
+    def undo_last_point(self) -> None:
         if not self.current or self.current.isClosed():
             return
         self.current.popPoint()
@@ -764,13 +735,13 @@ class Canvas(QWidget):
             self.drawing_polygon_signal.emit(False)
         self.update()
 
-    def loadPixmap(self, pixmap, clear_shapes=True):
+    def load_pixmap(self, pixmap: QPixmap, clear_shapes: bool = True) -> None:
         self.pixmap = pixmap
         if clear_shapes:
             self.shapes = []
         self.update()
 
-    def loadShapes(self, shapes, replace=True):
+    def load_shapes(self, shapes: list[Shape], replace: bool = True) -> None:
         if replace:
             self.shapes = list(shapes)
         else:
@@ -799,6 +770,27 @@ class Canvas(QWidget):
         self.shapes_backup = []
         self.update()
 
+    def __calculate_offsets(self, point: QPointF) -> None:
+        left = self.pixmap.width() - 1
+        right = 0
+        top = self.pixmap.height() - 1
+        bottom = 0
+        for s in self.selected_shapes:
+            rect = s.boundingRect()
+            if rect.left() < left:
+                left = rect.left()
+            if rect.right() > right:
+                right = rect.right()
+            if rect.top() < top:
+                top = rect.top()
+            if rect.bottom() > bottom:
+                bottom = rect.bottom()
+        x1 = left - point.x()
+        y1 = top - point.y()
+        x2 = right - point.x()
+        y2 = bottom - point.y()
+        self.offsets = QPointF(x1, y1), QPointF(x2, y2)
+
     def __select_shape_point(self, point: QPointF, multiple_selection_mode: bool) -> None:
         if self.selectedVertex():
             index, shape = self.highlighted_vertex, self.highlighted_shape
@@ -815,9 +807,15 @@ class Canvas(QWidget):
                     self.highlighted_shape_is_selected = False
                 else:
                     self.highlighted_shape_is_selected = True
-                self.calculateOffsets(point)
+                self.__calculate_offsets(point)
                 return
         self.deSelectShape()
+
+    def __move_by_keyboard(self, offset: QPointF) -> None:
+        if self.selected_shapes:
+            self.__move_shapes(self.selected_shapes, self.prevPoint + offset)
+            self.repaint()
+            self.movingShape = True
 
     def __move_shapes(self, shapes: list[Shape], pos: QPointF) -> None:
         dp = pos - self.prevPoint
@@ -1377,7 +1375,7 @@ class MainWindow(QMainWindow):
         self.action_delete = self.__new_action(self.tr('Delete Quad'), slot=self.__delete_selected_quad, shortcut=shortcuts['delete_polygon'], icon='cancel', tip=self.tr('Delete the selected quad'), enabled=False)
         self.action_copy = self.__new_action(self.tr('Copy Quad'), slot=self.__copy_selected_quad, shortcut=shortcuts['copy_polygon'], icon='copy_clipboard', tip=self.tr('Copy selected quad to clipboard'), enabled=False)
         self.action_paste = self.__new_action(self.tr('Paste Quad'), slot=self.__paste_selected_shape, shortcut=shortcuts['paste_polygon'], icon='paste', tip=self.tr('Paste copied quad'), enabled=False)
-        self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undoLastPoint, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
+        self.action_undo_last_point = self.__new_action(self.tr('Undo last point'), slot=self.canvas.undo_last_point, shortcut=shortcuts['undo_last_point'], icon='undo', tip=self.tr('Undo last drawn point'), enabled=False)
         self.action_undo = self.__new_action(self.tr('Undo\n'), slot=self.__undo_shape_edit, shortcut=shortcuts['undo'], icon='undo', tip=self.tr('Undo last add and edit of shape'), enabled=False)
         self.action_hide_all = self.__new_action(self.tr('&Hide\nQuad'), slot=partial(self.__toggle_polygons, False), shortcut=shortcuts['hide_all_polygons'], icon='eye', tip=self.tr('Hide all quad'), enabled=False)
         self.action_show_all = self.__new_action(self.tr('&Show\nQuad'), slot=partial(self.__toggle_polygons, True), shortcut=shortcuts['show_all_polygons'], icon='eye', tip=self.tr('Show all quad'), enabled=False)
@@ -1581,7 +1579,7 @@ class MainWindow(QMainWindow):
         self.image = image
         self.image_path = image_path
         self.image_data = image_data
-        self.canvas.loadPixmap(QPixmap.fromImage(self.image))
+        self.canvas.load_pixmap(QPixmap.fromImage(self.image))
 
         if (annot_path is not None) and osp.exists(annot_path):
             with open(annot_path, 'r') as f:
@@ -1667,7 +1665,7 @@ class MainWindow(QMainWindow):
         self.__set_clean()
 
     def __set_dirty(self) -> None:
-        self.action_undo.setEnabled(self.canvas.isShapeRestorable)
+        self.action_undo.setEnabled(self.canvas.is_shape_restorable())
         if self.action_save_auto.isChecked():
             self.__save()
             return
@@ -1718,10 +1716,10 @@ class MainWindow(QMainWindow):
         self.recent_files.insert(0, image_path)
 
     def __undo_shape_edit(self) -> None:
-        self.canvas.restoreShape()
+        self.canvas.restore_shape()
         self.quad_list.clear()
         self.__load_quads(self.canvas.shapes)
-        self.action_undo.setEnabled(self.canvas.isShapeRestorable)
+        self.action_undo.setEnabled(self.canvas.is_shape_restorable())
 
     def __toggle_drawing_sensitive(self, drawing: bool = True) -> None:
         self.action_edit_mode.setEnabled(not drawing)
@@ -1847,7 +1845,7 @@ class MainWindow(QMainWindow):
             self.__add_quad(quad)
         self.quad_list.clearSelection()
         self._noSelectionSlot = False
-        self.canvas.loadShapes(quads, replace=replace)
+        self.canvas.load_shapes(quads, replace=replace)
 
     def __remove_quads(self, quads: list[Shape]) -> None:
         for quad in quads:
@@ -1887,7 +1885,7 @@ class MainWindow(QMainWindow):
 
     def __label_order_changed(self) -> None:
         self.__set_dirty()
-        self.canvas.loadShapes([item.shape() for item in self.quad_list])
+        self.canvas.load_shapes([item.shape() for item in self.quad_list])
 
     def __new_shape(self) -> None:
         items = self.label_list.selectedItems()
@@ -1901,14 +1899,14 @@ class MainWindow(QMainWindow):
                 self.label_dialog.edit.setText(previous_text)
         if text:
             self.quad_list.clearSelection()
-            shape = self.canvas.setLastLabel(text)
+            shape = self.canvas.set_last_label(text)
             self.__add_quad(shape)
             self.action_edit_mode.setEnabled(True)
             self.action_undo_last_point.setEnabled(False)
             self.action_undo.setEnabled(True)
             self.__set_dirty()
         else:
-            self.canvas.undoLastLine()
+            self.canvas.undo_last_line()
             self.canvas.shapes_backup.pop()
 
     def __scroll_request(self, delta, orientation) -> None:
@@ -1965,7 +1963,7 @@ class MainWindow(QMainWindow):
         self.action_keep_prev_scale.setChecked(enabled)
 
     def __on_new_brightness_contrast(self, qimage) -> None:
-        self.canvas.loadPixmap(QPixmap.fromImage(qimage), clear_shapes=False)
+        self.canvas.load_pixmap(QPixmap.fromImage(qimage), clear_shapes=False)
 
     def __brightness_contrast(self, value) -> None:
         dialog = BrightnessContrastDialog(
