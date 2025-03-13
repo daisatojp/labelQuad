@@ -118,8 +118,6 @@ class Shape(object):
                  line_color=None):
         self.label = label
         self.points = []
-        self.point_labels = []
-        self._shape_raw = None
         self.fill = False
         self.selected = False
         self.other_data = {}
@@ -144,39 +142,25 @@ class Shape(object):
     def __setitem__(self, key, value):
         self.points[key] = value
 
-    def restore_shape_raw(self) -> None:
-        if self._shape_raw is None:
-            return
-        self.points, self.point_labels = self._shape_raw
-        self._shape_raw = None
-
     def close(self):
         self._closed = True
 
-    def addPoint(self, point, label=1):
+    def addPoint(self, point):
         if self.points and point == self.points[0]:
             self.close()
         else:
             self.points.append(point)
-            self.point_labels.append(label)
 
     def popPoint(self):
         if self.points:
-            if self.point_labels:
-                self.point_labels.pop()
             return self.points.pop()
         return None
-
-    def insertPoint(self, i, point, label=1):
-        self.points.insert(i, point)
-        self.point_labels.insert(i, label)
 
     def removePoint(self, i):
         if len(self.points) <= 3:
             logger.warning('Cannot remove point from: len(points)=%d', len(self.points))
             return
         self.points.pop(i)
-        self.point_labels.pop(i)
 
     def isClosed(self):
         return self._closed
@@ -396,8 +380,6 @@ class Canvas(QWidget):
                 self.overrideCursor(CURSOR_POINT)
                 self.current.highlightVertex(0, Shape.NEAR_VERTEX)
             self.line.points = [self.current[-1], pos]
-            self.line.point_labels = [1, 1]
-            assert len(self.line.points) == len(self.line.point_labels)
             self.repaint()
             self.current.highlightClear()
             return
@@ -469,9 +451,8 @@ class Canvas(QWidget):
                         self.finalise()
                 else:
                     self.current = Shape()
-                    self.current.addPoint(pos, label=0 if is_shift_pressed else 1)
+                    self.current.addPoint(pos)
                     self.line.points = [pos, pos]
-                    self.line.point_labels = [1, 1]
                     self.setHiding()
                     self.drawing_polygon_signal.emit(True)
                     self.update()
@@ -535,7 +516,6 @@ class Canvas(QWidget):
                 shape.paint(p)
         if self.current:
             self.current.paint(p)
-            assert len(self.line.points) == len(self.line.point_labels)
             self.line.paint(p)
         if self.selected_shapes_copy:
             for s in self.selected_shapes_copy:
@@ -711,7 +691,6 @@ class Canvas(QWidget):
         assert self.shapes
         self.current = self.shapes.pop()
         self.current.setOpen()
-        self.current.restore_shape_raw()
         self.line.points = [self.current[-1], self.current[0]]
         self.drawing_polygon_signal.emit(True)
 
