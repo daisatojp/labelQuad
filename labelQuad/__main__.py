@@ -377,7 +377,7 @@ class Canvas(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         try:
-            pos = self.transformPos(event.localPos())
+            pos = self.__transform_pos(event.localPos())
         except AttributeError:
             return
 
@@ -460,7 +460,7 @@ class Canvas(QWidget):
         self.vertex_selected_signal.emit(self.highlighted_vertex is not None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        pos = self.transformPos(event.localPos())
+        pos = self.__transform_pos(event.localPos())
         is_shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
         if event.button() == Qt.MouseButton.LeftButton:
             if self.drawing():
@@ -701,10 +701,6 @@ class Canvas(QWidget):
             self.update()
         return deleted_shapes
 
-    def transformPos(self, point):
-        """Convert from widget-logical coordinates to painter-logical ones."""
-        return point / self.scale - self.offsetToCenter()
-
     def offsetToCenter(self):
         s = self.scale
         area = super(Canvas, self).size()
@@ -836,6 +832,9 @@ class Canvas(QWidget):
         index, shape = self.highlighted_vertex, self.highlighted_shape
         point = shape[index]
         shape.moveVertexBy(index, pos - point)
+
+    def __transform_pos(self, point: QPointF) -> QPointF:
+        return point / self.scale - self.offsetToCenter()
 
 
 class EscapableQListWidget(QListWidget):
