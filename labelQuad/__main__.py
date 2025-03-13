@@ -1651,7 +1651,6 @@ class MainWindow(QMainWindow):
                 p2x=round(pts[1].x(), 2), p2y=round(pts[1].y(), 2),
                 p3x=round(pts[2].x(), 2), p3y=round(pts[2].y(), 2),
                 p4x=round(pts[3].x(), 2), p4y=round(pts[3].y(), 2))
-        image_path = osp.relpath(annot_path, osp.dirname(image_path))
         if osp.dirname(annot_path) and not osp.exists(osp.dirname(annot_path)):
             os.makedirs(osp.dirname(annot_path))
         with open(annot_path, 'w') as f:

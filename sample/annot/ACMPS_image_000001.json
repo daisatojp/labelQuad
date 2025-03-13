@@ -1,6 +1,6 @@
 {
   "version": "1.1.0",
-  "path": "../annot/ACMPS_image_000001.json",
+  "path": "/media/tan/repo/labelQuad/sample/image/ACMPS_image_000001.jpg",
   "width": 1280,
   "height": 736,
   "shapes": [
@@ -83,14 +83,14 @@
     },
     {
       "label": "0",
-      "p1x": 736.75,
-      "p1y": 371.25,
-      "p2x": 709.91,
-      "p2y": 402.12,
-      "p3x": 751.54,
-      "p3y": 407.7,
-      "p4x": 773.0,
-      "p4y": 375.08
+      "p1x": 736.29,
+      "p1y": 370.89,
+      "p2x": 709.45,
+      "p2y": 401.76,
+      "p3x": 751.08,
+      "p3y": 407.34,
+      "p4x": 772.54,
+      "p4y": 374.72
     }
   ]
 }
