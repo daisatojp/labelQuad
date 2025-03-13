@@ -872,69 +872,6 @@ class LabelFile(object):
             f.seek(0)
             return f.read()
 
-    def load(self, filename):
-        keys = [
-            'version',
-            'imageData',
-            'imagePath',
-            'shapes',
-            'imageHeight',
-            'imageWidth',
-        ]
-        shape_keys = [
-            'label',
-            'points']
-        try:
-            with open(filename, 'r') as f:
-                data = json.load(f)
-
-            if data['imageData'] is not None:
-                imageData = base64.b64decode(data['imageData'])
-            else:
-                # relative path from label file to relative path from cwd
-                imagePath = osp.join(osp.dirname(filename), data['imagePath'])
-                imageData = self.load_image_file(imagePath)
-            imagePath = data['imagePath']
-            self._check_image_height_and_width(
-                base64.b64encode(imageData).decode('utf-8'),
-                data.get('imageHeight'),
-                data.get('imageWidth'),
-            )
-            shapes = [
-                dict(
-                    label=s['label'],
-                    points=s['points'],
-                    other_data={k: v for k, v in s.items() if k not in shape_keys},
-                )
-                for s in data['shapes']
-            ]
-        except Exception as e:
-            raise LabelFileError(e)
-
-        otherData = {}
-        for key, value in data.items():
-            if key not in keys:
-                otherData[key] = value
-
-        self.shapes = shapes
-        self.imagePath = imagePath
-        self.imageData = imageData
-        self.filename = filename
-        self.otherData = otherData
-
-    @staticmethod
-    def _check_image_height_and_width(imageData, imageHeight, imageWidth):
-        img_arr = img_b64_to_arr(imageData)
-        if imageHeight is not None and img_arr.shape[0] != imageHeight:
-            logger.error('imageHeight does not match with imageData or imagePath, '
-                         'so getting imageHeight from actual image.')
-            imageHeight = img_arr.shape[0]
-        if imageWidth is not None and img_arr.shape[1] != imageWidth:
-            logger.error('imageWidth does not match with imageData or imagePath, '
-                         'so getting imageWidth from actual image.')
-            imageWidth = img_arr.shape[1]
-        return imageHeight, imageWidth
-
     def save(self,
              filename,
              shapes,
@@ -954,10 +891,6 @@ class LabelFile(object):
             self.filename = filename
         except Exception as e:
             raise LabelFileError(e)
-
-    @staticmethod
-    def is_label_file(filename):
-        return osp.splitext(filename)[1].lower() == LabelFile.suffix
 
 
 class EscapableQListWidget(QListWidget):
@@ -2244,7 +2177,7 @@ class MainWindow(QMainWindow):
             item = self.file_list.item(i)
             image_path = osp.join(self.image_dir, item.text())
             annot_path = osp.join(self.annot_dir, osp.splitext(osp.basename(image_path))[0] + '.json')
-            if QFile.exists(annot_path) and LabelFile.is_label_file(annot_path):
+            if QFile.exists(annot_path) and (osp.splitext(annot_path)[1].lower() == '.json'):
                 item.setCheckState(Qt.CheckState.Checked)
             else:
                 item.setCheckState(Qt.CheckState.Unchecked)
