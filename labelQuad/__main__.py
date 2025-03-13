@@ -299,8 +299,8 @@ class Canvas(QWidget):
         super(Canvas, self).__init__(*args, **kwargs)
 
         self.mode = self.EDIT
-        self.shapes = []
-        self.shapesBackups = []
+        self.shapes: list[Shape] = []
+        self.shapes_backup: list[Shape] = []
         self.current = None
         self.selected_shapes: list[Shape] = []
         self.selected_shapes_copy: list[Shape] = []
@@ -360,7 +360,7 @@ class Canvas(QWidget):
         elif self.editing():
             if self.movingShape and self.selected_shapes:
                 index = self.shapes.index(self.selected_shapes[0])
-                if self.shapesBackups[-1][index].points != self.shapes[index].points:
+                if self.shapes_backup[-1][index].points != self.shapes[index].points:
                     self.storeShapes()
                     self.shape_moved_signal.emit()
                 self.movingShape = False
@@ -508,7 +508,7 @@ class Canvas(QWidget):
                     self.selection_changed_signal.emit([x for x in self.selected_shapes if x != self.highlighted_shape])
         if self.movingShape and self.highlighted_shape:
             index = self.shapes.index(self.highlighted_shape)
-            if self.shapesBackups[-1][index].points != self.shapes[index].points:
+            if self.shapes_backup[-1][index].points != self.shapes[index].points:
                 self.storeShapes()
                 self.shape_moved_signal.emit()
             self.movingShape = False
@@ -575,22 +575,22 @@ class Canvas(QWidget):
         shapesBackup = []
         for shape in self.shapes:
             shapesBackup.append(shape.copy())
-        if len(self.shapesBackups) > self.num_backups:
-            self.shapesBackups = self.shapesBackups[-self.num_backups - 1 :]
-        self.shapesBackups.append(shapesBackup)
+        if len(self.shapes_backup) > self.num_backups:
+            self.shapes_backup = self.shapes_backup[-self.num_backups - 1 :]
+        self.shapes_backup.append(shapesBackup)
 
     @property
     def isShapeRestorable(self):
-        if len(self.shapesBackups) < 2:
+        if len(self.shapes_backup) < 2:
             return False
         return True
 
     def restoreShape(self):
         if not self.isShapeRestorable:
             return
-        self.shapesBackups.pop()  # latest
+        self.shapes_backup.pop()
 
-        shapesBackup = self.shapesBackups.pop()
+        shapesBackup = self.shapes_backup.pop()
         self.shapes = shapesBackup
         self.selected_shapes = []
         for shape in self.shapes:
@@ -745,7 +745,7 @@ class Canvas(QWidget):
     def setLastLabel(self, text):
         assert text
         self.shapes[-1].label = text
-        self.shapesBackups.pop()
+        self.shapes_backup.pop()
         self.storeShapes()
         return self.shapes[-1]
 
@@ -800,7 +800,7 @@ class Canvas(QWidget):
     def resetState(self):
         self.restoreCursor()
         self.pixmap = None
-        self.shapesBackups = []
+        self.shapes_backup = []
         self.update()
 
     def __select_shape_point(self, point: QPointF, multiple_selection_mode: bool) -> None:
@@ -820,6 +820,8 @@ class Canvas(QWidget):
                 else:
                     self.highlighted_shape_is_selected = True
                 self.calculateOffsets(point)
+                return
+        self.deSelectShape()
 
     def __move_shapes(self, shapes: list[Shape], pos: QPointF) -> None:
         dp = pos - self.prevPoint
@@ -1893,7 +1895,7 @@ class MainWindow(QMainWindow):
             self.__set_dirty()
         else:
             self.canvas.undoLastLine()
-            self.canvas.shapesBackups.pop()
+            self.canvas.shapes_backup.pop()
 
     def __scroll_request(self, delta, orientation) -> None:
         units = -delta * 0.1
