@@ -1229,6 +1229,20 @@ class BrightnessContrastDialog(QDialog):
         self.callback(qimage)
 
 
+class ShowInfoAction(QAction):
+
+    def __init__(self, parent: QWidget):
+        super(ShowInfoAction, self).__init__(
+            'Show Info', parent=parent)
+
+        self.triggered.connect(self.__exec)
+        self.setEnabled(True)
+
+    def __exec(self):
+        msg = '{0}\nversion : {1}'.format(__appname__, __version__)
+        QMB.information(self.parent(), 'Information', msg)
+
+
 class MainWindow(QMainWindow):
 
     def __init__(self, config=None) -> None:
@@ -1407,6 +1421,8 @@ class MainWindow(QMainWindow):
         if self._config['canvas']['fill_drawing']:
             self.action_fill_drawing.trigger()
 
+        self.action_show_info = ShowInfoAction(self)
+
         label_menu = QMenu()
         addActions(label_menu, (self.action_edit, self.action_delete))
         self.quad_list.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -1453,6 +1469,9 @@ class MainWindow(QMainWindow):
              self.action_fit_width,
              None,
              self.action_brightness_contrast))
+        addActions(
+            self.menu_help,
+            (self.action_show_info,))
         self.menu_file.aboutToShow.connect(self.updateFileMenu)
 
         addActions(
