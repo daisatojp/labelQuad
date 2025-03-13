@@ -38,8 +38,10 @@ __version__ = '1.1.0'
 
 
 LABEL_COLORMAP = imgviz.label_colormap()
-ZOOM_MODE_FIT_WINDOW: int = 0
-ZOOM_MODE_FIT_WIDTH: int = 1
+MODE_CREATE: int = 0
+MODE_EDIT  : int = 1
+ZOOM_MODE_FIT_WINDOW : int = 0
+ZOOM_MODE_FIT_WIDTH  : int = 1
 ZOOM_MODE_MANUAL_ZOOM: int = 2
 MAX_RECENT_FILES: int = 7
 CURSOR_DEFAULT: Qt.CursorShape = Qt.CursorShape.ArrowCursor
@@ -184,24 +186,20 @@ class Shape(object):
     def paint(self, painter: QPainter) -> None:
         if not self.points:
             return
-
         color = self.select_line_color if self.selected else self.line_color
         pen = QPen(color)
         pen.setWidth(self.PEN_WIDTH)
         painter.setPen(pen)
-
         if self.points:
             line_path = QPainterPath()
             vrtx_path = QPainterPath()
             negative_vrtx_path = QPainterPath()
-
             line_path.moveTo(self.__scale_point(self.points[0]))
             for i, p in enumerate(self.points):
                 line_path.lineTo(self.__scale_point(p))
                 self.__draw_vertex(vrtx_path, i)
             if self.isClosed():
                 line_path.lineTo(self.__scale_point(self.points[0]))
-
             painter.drawPath(line_path)
             if vrtx_path.length() > 0:
                 painter.drawPath(vrtx_path)
@@ -209,7 +207,6 @@ class Shape(object):
             if self.fill:
                 color = self.select_fill_color if self.selected else self.fill_color
                 painter.fillPath(line_path, color)
-
             pen.setColor(QColor(255, 0, 0, 255))
             painter.setPen(pen)
             painter.drawPath(negative_vrtx_path)
@@ -285,10 +282,6 @@ class Canvas(QWidget):
     vertex_selected_signal = pyqtSignal(bool)
     mouse_moved_signal = pyqtSignal(QPointF)
 
-    CREATE, EDIT = 0, 1
-
-    _fill_drawing = False
-
     def __init__(self, *args, **kwargs):
         self.epsilon = kwargs.pop('epsilon', 10.0)
         self.double_click = kwargs.pop('double_click', 'close')
@@ -298,7 +291,7 @@ class Canvas(QWidget):
 
         super(Canvas, self).__init__(*args, **kwargs)
 
-        self.mode = self.EDIT
+        self.mode = MODE_EDIT
         self.shapes: list[Shape] = []
         self.shapes_backup: list[Shape] = []
         self.current = None
@@ -323,6 +316,7 @@ class Canvas(QWidget):
         self._painter = QPainter()
         self._cursor = CURSOR_DEFAULT
         self.menus = [QMenu(), QMenu()]
+        self.fill_drawing: bool = False
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
@@ -364,7 +358,7 @@ class Canvas(QWidget):
             if self.movingShape and self.selected_shapes:
                 index = self.shapes.index(self.selected_shapes[0])
                 if self.shapes_backup[-1][index].points != self.shapes[index].points:
-                    self.storeShapes()
+                    self.store_shapes()
                     self.shape_moved_signal.emit()
                 self.movingShape = False
 
@@ -512,7 +506,7 @@ class Canvas(QWidget):
         if self.movingShape and self.highlighted_shape:
             index = self.shapes.index(self.highlighted_shape)
             if self.shapes_backup[-1][index].points != self.shapes[index].points:
-                self.storeShapes()
+                self.store_shapes()
                 self.shape_moved_signal.emit()
             self.movingShape = False
 
@@ -546,12 +540,11 @@ class Canvas(QWidget):
             for s in self.selected_shapes_copy:
                 s.paint(p)
 
-        if (self.fillDrawing()) and \
+        if (self.fill_drawing) and \
            (self.current is not None) and \
            (len(self.current.points) >= 2):
             drawing_shape = self.current.copy()
             if drawing_shape.fill_color.getRgb()[3] == 0:
-                logger.warning('fill_drawing=true, but fill_color is transparent, so forcing to be opaque.')
                 drawing_shape.fill_color.setAlpha(64)
             drawing_shape.addPoint(self.line[1])
             drawing_shape.fill = True
@@ -568,13 +561,10 @@ class Canvas(QWidget):
             self.scroll_request_signal.emit(delta.y(), Qt.Orientation.Vertical)
         event.accept()
 
-    def fillDrawing(self):
-        return self._fill_drawing
+    def set_fill_drawing(self, value: bool) -> None:
+        self.fill_drawing = value
 
-    def setFillDrawing(self, value):
-        self._fill_drawing = value
-
-    def storeShapes(self):
+    def store_shapes(self) -> None:
         shapesBackup = []
         for shape in self.shapes:
             shapesBackup.append(shape.copy())
@@ -602,14 +592,14 @@ class Canvas(QWidget):
         return self.visible.get(shape, True)
 
     def drawing(self):
-        return self.mode == self.CREATE
+        return self.mode == MODE_CREATE
 
     def editing(self):
-        return self.mode == self.EDIT
+        return self.mode == MODE_EDIT
 
     def setEditing(self, value: bool = True) -> None:
-        self.mode = self.EDIT if value else self.CREATE
-        if self.mode == self.EDIT:
+        self.mode = MODE_EDIT if value else MODE_CREATE
+        if self.mode == MODE_EDIT:
             self.repaint()
         else:
             self.unHighlight()
@@ -639,7 +629,7 @@ class Canvas(QWidget):
             self.selected_shapes[i] = shape
         self.selected_shapes_copy = []
         self.repaint()
-        self.storeShapes()
+        self.store_shapes()
 
     def hideBackroundShapes(self, value):
         self.hideBackround = value
@@ -673,7 +663,7 @@ class Canvas(QWidget):
             for shape in self.selected_shapes:
                 self.shapes.remove(shape)
                 deleted_shapes.append(shape)
-            self.storeShapes()
+            self.store_shapes()
             self.selected_shapes = []
             self.update()
         return deleted_shapes
@@ -692,7 +682,7 @@ class Canvas(QWidget):
         self.current.close()
 
         self.shapes.append(self.current)
-        self.storeShapes()
+        self.store_shapes()
         self.current = None
         self.setHiding(False)
         self.new_shape_signal.emit()
@@ -713,7 +703,7 @@ class Canvas(QWidget):
         assert text
         self.shapes[-1].label = text
         self.shapes_backup.pop()
-        self.storeShapes()
+        self.store_shapes()
         return self.shapes[-1]
 
     def undo_last_line(self) -> None:
@@ -746,7 +736,7 @@ class Canvas(QWidget):
             self.shapes = list(shapes)
         else:
             self.shapes.extend(shapes)
-        self.storeShapes()
+        self.store_shapes()
         self.current = None
         self.highlighted_shape = None
         self.highlighted_vertex = None
@@ -1411,7 +1401,7 @@ class MainWindow(QMainWindow):
             ZOOM_MODE_MANUAL_ZOOM: lambda: 1}
 
         self.action_edit = self.__new_action(self.tr('&Edit Label'), slot=self.__edit_label, shortcut=shortcuts['edit_label'], icon='edit', tip=self.tr('Modify the label of the selected polygon'), enabled=False)
-        self.action_fill_drawing = self.__new_action(self.tr('Fill Drawing Polygon'), slot=self.canvas.setFillDrawing, shortcut=None, icon='color', tip=self.tr('Fill polygon while drawing'), checkable=True, enabled=True)
+        self.action_fill_drawing = self.__new_action(self.tr('Fill Drawing Polygon'), slot=self.canvas.set_fill_drawing, shortcut=None, icon='color', tip=self.tr('Fill polygon while drawing'), checkable=True, enabled=True)
         if self._config['canvas']['fill_drawing']:
             self.action_fill_drawing.trigger()
 
@@ -1419,7 +1409,7 @@ class MainWindow(QMainWindow):
 
         label_menu = QMenu()
         addActions(label_menu, (self.action_edit, self.action_delete))
-        self.quad_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.quad_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.quad_list.customContextMenuRequested.connect(self.__pop_label_list_menu)
 
         self.menu_file = self.menuBar().addMenu(self.tr('&File'))
@@ -1767,7 +1757,7 @@ class MainWindow(QMainWindow):
         text = self.label_dialog.popup(text=quad.label)
         if text is None:
             return
-        self.canvas.storeShapes()
+        self.canvas.store_shapes()
         quad.label = text
         self._update_shape_color(quad)
         item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
