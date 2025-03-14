@@ -922,30 +922,29 @@ class StandardItemModel(QStandardItemModel):
 
 class LabelListWidgetItem(QStandardItem):
 
-    def __init__(self, text=None, shape=None) -> None:
+    def __init__(self,
+                 text: Optional[str] = None,
+                 shape: Optional[Shape] = None
+                 ) -> None:
         super(LabelListWidgetItem, self).__init__()
         self.setText(text or '')
-        self.setShape(shape)
-
+        self.setData(shape, Qt.ItemDataRole.UserRole)
         self.setCheckable(True)
         self.setCheckState(Qt.CheckState.Checked)
         self.setEditable(False)
         self.setTextAlignment(Qt.AlignmentFlag.AlignBottom)
-
-    def clone(self):
-        return LabelListWidgetItem(self.text(), self.shape())
-
-    def setShape(self, shape):
-        self.setData(shape, Qt.ItemDataRole.UserRole)
-
-    def shape(self):
-        return self.data(Qt.ItemDataRole.UserRole)
 
     def __hash__(self):
         return id(self)
 
     def __repr__(self):
         return '{}("{}")'.format(self.__class__.__name__, self.text())
+
+    def clone(self):
+        return LabelListWidgetItem(self.text(), self.shape())       
+
+    def shape(self) -> Optional[Shape]:
+        return self.data(Qt.ItemDataRole.UserRole)
 
 
 class LabelListWidget(QListView):
@@ -955,7 +954,6 @@ class LabelListWidget(QListView):
 
     def __init__(self):
         super(LabelListWidget, self).__init__()
-        self._selectedItems = []
 
         self.setWindowFlags(Qt.WindowType.Window)
         self.setModel(StandardItemModel())
@@ -993,7 +991,7 @@ class LabelListWidget(QListView):
     def itemDoubleClickedEvent(self, index):
         self.itemDoubleClicked.emit(self.model().itemFromIndex(index))
 
-    def selectedItems(self):
+    def selected_items(self) -> list[LabelListWidgetItem]:
         return [self.model().itemFromIndex(i) for i in self.selectedIndexes()]
 
     def scrollToItem(self, item):
@@ -1728,26 +1726,26 @@ class MainWindow(QMainWindow):
     def __edit_label(self) -> None:
         if not self.canvas.editing():
             return
-        items = self.quad_list.selectedItems()
+        items = self.quad_list.selected_items()
         if len(items) <= 0:
             logger.warning('No label is selected, so cannot edit label.')
             return
-        item = items[0]
-        quad: Shape = items[0].shape()
-        text = self.label_dialog.popup(text=quad.label)
-        if text is None:
+        label: str = items[0].shape().label
+        label = self.label_dialog.popup(text=label)
+        if label is None:
             return
         self.canvas.store_shapes()
-        quad.label = text
-        self._update_shape_color(quad)
-        item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
-            html.escape(quad.label), *quad.fill_color.getRgb()[:3]))
-        self.__set_dirty()
-        if self.label_list.findItemByLabel(quad.label) is None:
-            item = self.label_list.createItemFromLabel(quad.label)
+        for item in items:
+            quad: Shape = item.shape()
+            quad.label = label
+            self.__update_shape_color(quad)
+            item.setText('{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
+                html.escape(quad.label), *quad.fill_color.getRgb()[:3]))
+        if self.label_list.findItemByLabel(label) is None:
+            item = self.label_list.createItemFromLabel(label)
             self.label_list.addItem(item)
-            rgb = self.__get_rgb_by_label(quad.label)
-            self.label_list.setItemLabel(item, quad.label, rgb)
+            self.label_list.setItemLabel(item, label, self.__get_rgb_by_label(label))
+        self.__set_dirty()
 
     def __file_search_changed(self) -> None:
         self.__import_dir_images(
@@ -1789,12 +1787,12 @@ class MainWindow(QMainWindow):
         self.label_dialog.add_label_history(quad.label)
         for action in self.actions_on_shapes_present:
             action.setEnabled(True)
-        self._update_shape_color(quad)
+        self.__update_shape_color(quad)
         label_list_item.setText(
             '{} <font color="#{:02x}{:02x}{:02x}">●</font>'.format(
                 html.escape(text), *quad.fill_color.getRgb()[:3]))
 
-    def _update_shape_color(self, shape):
+    def __update_shape_color(self, shape: Shape) -> None:
         r, g, b = self.__get_rgb_by_label(shape.label)
         shape.line_color = QColor(r, g, b)
         shape.vertex_fill_color = QColor(r, g, b)
@@ -1842,7 +1840,7 @@ class MainWindow(QMainWindow):
             return
         if self.canvas.editing():
             selected_shapes = []
-            for item in self.quad_list.selectedItems():
+            for item in self.quad_list.selected_items():
                 selected_shapes.append(item.shape())
             if selected_shapes:
                 self.canvas.selectShapes(selected_shapes)
