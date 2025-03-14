@@ -35,7 +35,7 @@ PIL.Image.MAX_IMAGE_PIXELS = None
 
 
 __appname__ = 'labelQuad'
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 
 LABEL_COLORMAP = imgviz.label_colormap()
