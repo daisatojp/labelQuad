@@ -2058,6 +2058,8 @@ class MainWindow(QMainWindow):
         dir_path = '.'
         if self.image_dir and osp.exists(self.image_dir):
             dir_path = self.image_dir
+        if self.annot_dir and osp.exists(self.annot_dir):
+            dir_path = self.annot_dir
         self.annot_dir = str(QFileDialog.getExistingDirectory(
             self, self.tr(f'{__appname__} - Open Annot Directory'), dir_path,
             QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks))
